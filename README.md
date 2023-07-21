@@ -1,2 +1,4 @@
 # nonsens_info_conf
- Accompanying repository of paper "Non-sensory information affects confidence during perceptual decision-making"
+This repository contains the data and analysis script of the article "Non-sensory information affects confidence during perceptual decision-making"
+
+Pre-print: https://psyarxiv.com/xa4fj
