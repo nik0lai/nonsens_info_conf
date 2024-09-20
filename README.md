@@ -1,4 +1,4 @@
-# Non-sensory information affects confidence during perceptual decision-making (2023)
+# Confidence reports during perceptual decision making dissociate from changes in subjective experience (2024)
 This repository contains the article's data and analysis script.
 
-Pre-print: https://psyarxiv.com/xa4fj
+Pre-print: https://osf.io/preprints/psyarxiv/xa4fj

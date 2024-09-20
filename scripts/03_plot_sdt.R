@@ -1,6 +1,5 @@
 # Packages
 if (!require('pacman', quietly = TRUE)) install.packages('pacman'); library('pacman', quietly = TRUE)
-# p_load(magrittr, purrr, dplyr, here, readr, tidyr, colorspace, ggplot2, tibble, litHelp, patchwork)
 p_load(magrittr, readr, dplyr, purrr, tidyr, tibble, ggplot2, stringr, patchwork)
 
 source('scripts/funcs.R')
@@ -42,15 +41,6 @@ rep_data <-
   group_by(confidence_type, participant, bias_source, bias_direction) %>% 
   summarise(reproduction_error = mean(reproduction_error))
 
-# Labels ------------------------------------------------------------------
-
-# Bias source label
-label_bias_source = c('baserate' = 'Base-rate', 
-                      'mullerlyer' = 'Müller-Lyer',
-                      'payoff' = 'Payoff')
-# Bias direction label
-label_bias_direction = c('long'='Long', 'short'='Short')
-
 # Create condition column -------------------------------------------------
 
 # set order for conditions in the plot
@@ -87,7 +77,7 @@ p_bias_concurrent <- basic_point_plot(data=data_to_plot, bf_d_y_position=bias_pl
   ylim(bias_plot_y_limits)
 
 p_bias_concurrent
-ggsave('plots/concurrent_sdt_criterion.png', width = 6, height = 4, scale = .7)
+ggsave('plots/concurrent_sdt_criterion.png', width = 6, height = 4, scale = .75, device=png)
 
 ## Delayed ------
 
@@ -103,7 +93,7 @@ p_bias_delayed <- basic_point_plot(data=data_to_plot, bf_d_y_position=bias_plot_
   ylim(bias_plot_y_limits)
 
 p_bias_delayed
-ggsave('plots/delayed_sdt_criterion.png', width = 6, height = 4, scale = .7)
+ggsave('plots/delayed_sdt_criterion.png', width = 6, height = 4, scale = .75, device=png)
 
 # Plot Reproduction ---------------------------------------------------------------
 
@@ -125,7 +115,7 @@ p_reproduction_concurrent <-
   ylim(reproduction_plot_y_limits)
 
 p_reproduction_concurrent
-ggsave('plots/concurrent_reproduction_error.png', width = 6, height = 4, scale = .7)
+ggsave('plots/concurrent_reproduction_error.png', width = 6, height = 4, scale = .75, device=png)
 
 ## Delayed ------
 
@@ -142,7 +132,7 @@ p_reproduction_delayed <-
   ylim(reproduction_plot_y_limits)
 
 p_reproduction_delayed
-ggsave('plots/delayed_reproduction_error.png', width = 6, height = 4, scale = .7)
+ggsave('plots/delayed_reproduction_error.png', width = 6, height = 4, scale = .75, device=png)
 
 # Combine reproduction plot -----------------------------------------------
 
@@ -158,7 +148,7 @@ p_reproduction_combined <- basic_point_plot(data=data_to_plot, bf_d_y_position=r
   ylim(reproduction_plot_y_limits)
 
 p_reproduction_combined
-ggsave('plots/combined_reproduction_error.png',width = 7, height = 4, dpi = 300, scale=.68)
+ggsave('plots/combined_reproduction_error.png',width = 7, height = 4, dpi = 300, scale=.68, device=png)
 
 # Plot Sensitivity ---------------------------------------------------------------
 
@@ -179,7 +169,7 @@ p_sensitivity_concurrent <- basic_point_plot(data=data_to_plot, bf_d_y_position=
   ylim(sensitivity_plot_y_limits)
 
 p_sensitivity_concurrent
-ggsave('plots/concurrent_sdt_sensitivity.png', width = 6, height = 4, scale = .7)
+ggsave('plots/concurrent_sdt_sensitivity.png', width = 6, height = 4, scale = .75, device=png)
 
 ## Delayed ------
 
@@ -195,12 +185,12 @@ p_sensitivity_delayed <- basic_point_plot(data=data_to_plot, bf_d_y_position=sen
   ylim(sensitivity_plot_y_limits)
 
 p_sensitivity_delayed
-ggsave('plots/delayed_sdt_sensitivity.png', width = 6, height = 4, scale = .7)
+ggsave('plots/delayed_sdt_sensitivity.png', width = 6, height = 4, scale = .75, device=png)
 
 
 # Combine sensitivity plots -----------------------------------------------
 
 p_sensitivity_concurrent / p_sensitivity_delayed
 
-ggsave('results/plots/combined_sdt_sensitivity.png', width = 10, height = 10, scale = .6)
+ggsave('plots/combined_sdt_sensitivity.png', width = 10, height = 10, scale = .6, device=png)
 

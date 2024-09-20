@@ -24,13 +24,6 @@ dat_reproduction_delayed <- read_csv(here('data/processed/reproduction_predicted
 
 # Labels ------------------------------------------------------------------
 
-# Bias source label
-label_bias_source = c('baserate' = 'Base-rate', 
-                      'mullerlyer' = 'Müller-Lyer',
-                      'payoff' = 'Payoff')
-# Bias direction label
-label_bias_direction = c('long'='Long', 'short'='Short')
-
 dat_decision_concurrent %>% 
   group_by(participant, bias_source, bias_direction) %>% 
   summarise(count = n(), .groups = 'drop') %>% 
@@ -45,7 +38,8 @@ p_decision_concurrent <-
   basic_curve_plot(curve_data = dat_decision_concurrent, 
                    empirical_data = dat_concurrent %>% 
                      filter(trial_type=='decision') %>% 
-                     mutate(answer=recode(answer,'short'=0,'long'=1)))
+                     mutate(answer=recode(answer,'short'=0,'long'=1))) +
+  ggtitle('Decision task')
 
 # Get PSE
 pse_concurrent <- get_pse(dat_decision_concurrent) 
@@ -59,9 +53,9 @@ p_decision_concurrent <-
   ylab('Proportion "Long" answers') +
   xlab('Target length') +
   geom_text(data=get_bf_d(data = pse_concurrent %>% select(-data)), 
-            aes(x=390, y= .91, label=label), size=2.8, parse=TRUE, inherit.aes = FALSE) +
+            aes(x=386, y= .9, label=label), size=2.5, parse=TRUE, inherit.aes = FALSE) +
   theme(axis.title.x = element_blank(),
-        legend.position = 'none')
+        legend.position = 'none') 
 
 ## Delayed ---------------------------------
 
@@ -69,7 +63,8 @@ p_decision_delayed <-
   basic_curve_plot(curve_data = dat_decision_delayed, 
                    empirical_data = dat_delayed %>% 
                      filter(trial_type=='decision') %>%
-                     mutate(answer=recode(answer,'short'=0,'long'=1)))
+                     mutate(answer=recode(answer,'short'=0,'long'=1))) +
+  ggtitle('Decision task')
 
 # Get PSE
 pse_delayed <- get_pse(dat_decision_delayed) 
@@ -84,7 +79,7 @@ p_decision_delayed <-
   ylab('Proportion "Long" answers') +
   xlab('Target length') +
   geom_text(data=get_bf_d(data = pse_delayed %>% select(-data)), 
-            aes(x=390, y= .91, label=label), size=2.8, parse=TRUE, inherit.aes = FALSE) +
+            aes(x=386, y= .9, label=label), size=2.5, parse=TRUE, inherit.aes = FALSE) +
   theme(axis.title.x = element_blank(),
         legend.position = 'none')
 
@@ -96,7 +91,8 @@ p_confidence_concurrent <-
   basic_curve_plot(curve_data = dat_confidence_concurrent, 
                    empirical_data = dat_concurrent %>% 
                      filter(trial_type=='decision') %>% 
-                     mutate(answer = recode(confidence, 'low'=0,'high'=1)))
+                     mutate(answer = recode(confidence, 'low'=0,'high'=1))) +
+  ggtitle('Confidence task')
 
 ### Lowest confidence point -------------------
 
@@ -118,25 +114,17 @@ p_confidence_concurrent <-
 p_confidence_concurrent <-
   p_confidence_concurrent +
   geom_point(aes(fill=bias_direction), alpha=0, show.legend = TRUE) +
-  scale_fill_manual(name = 'Bias direction',
-                    values = get_condition_colors(),
-                    breaks = c('mullerlyer_long', 'mullerlyer_short'),
+  scale_fill_manual(name = 'Bias direction', 
+                    values = c(1, 1),
+                    breaks = c('long', 'short'),
                     labels = c('Long', 'Short')) +
-  scale_color_manual(name = 'Bias direction', 
-                     values = get_condition_colors(), 
-                     breaks = c('mullerlyer_long', 'mullerlyer_short'),
-                     labels = c('Long', 'Short')) +
-  scale_linetype_manual(name = 'Bias direction',
-                        breaks = c('mullerlyer_long', 'mullerlyer_short'),
-                        labels = c('Long', 'Short'),
-                        values = c(1, 1)) +
-  guides(color = guide_legend(ncol = 2, nrow = 1, byrow = TRUE, 
-                              override.aes = list(alpha=c(1,1), 
-                                                  fill=c('black', lighten('black', .6)), 
-                                                  color=c('black', lighten('black', .6))))) +
+  guides(
+    color='none',
+    fill=guide_legend(title='Bias direction', 
+                      override.aes = list(linetype=c(1,2),
+                                          color=c('black', lighten('black', .6)))),
+    linetype='none') +
   theme(legend.position = 'bottom')
-
-
 
 
 ## Delayed ---------------------------------
@@ -145,7 +133,8 @@ p_confidence_delayed <-
   basic_curve_plot(curve_data = dat_confidence_delayed,
                    empirical_data = dat_delayed %>% 
                      filter(trial_type=='decision') %>% 
-                     mutate(answer = recode(confidence, 'low'=0,'high'=1)))
+                     mutate(answer = recode(confidence, 'low'=0,'high'=1))) +
+  ggtitle('Confidence task')
 
 ### Lowest confidence point -------------------
 
@@ -167,22 +156,16 @@ p_confidence_delayed <-
 p_confidence_delayed <-
   p_confidence_delayed +
   geom_point(aes(fill=bias_direction), alpha=0, show.legend = TRUE) +
-  scale_fill_manual(name = 'Bias direction',
-                    values = get_condition_colors(),
-                    breaks = c('mullerlyer_long', 'mullerlyer_short'),
+  scale_fill_manual(name = 'Bias direction', 
+                    values = c(1, 1),
+                    breaks = c('long', 'short'),
                     labels = c('Long', 'Short')) +
-  scale_color_manual(name = 'Bias direction', 
-                     values = get_condition_colors(), 
-                     breaks = c('mullerlyer_long', 'mullerlyer_short'),
-                     labels = c('Long', 'Short')) +
-  scale_linetype_manual(name = 'Bias direction',
-                        breaks = c('mullerlyer_long', 'mullerlyer_short'),
-                        labels = c('Long', 'Short'),
-                        values = c(1, 1)) +
-  guides(color = guide_legend(ncol = 2, nrow = 1, byrow = TRUE, 
-                              override.aes = list(alpha=c(1,1), 
-                                                  fill=c('black', lighten('black', .6)), 
-                                                  color=c('black', lighten('black', .6))))) +
+  guides(
+    color='none',
+    fill=guide_legend(title='Bias direction', 
+                      override.aes = list(linetype=c(1,2),
+                                          color=c('black', lighten('black', .6)))),
+    linetype='none') +
   theme(legend.position = 'bottom')
 
 # Plot reproduction ---------------------------------------------------------
@@ -191,7 +174,8 @@ p_confidence_delayed <-
 
 p_reproduction_concurrent <- 
   basic_curve_plot(curve_data = dat_reproduction_concurrent, 
-                   empirical_data = dat_concurrent %>% filter(trial_type=='reproduction'))
+                   empirical_data = dat_concurrent %>% filter(trial_type=='reproduction')) +
+  ggtitle('Reproduction task')
 
 # Get target length associated with reference reproduction
 rep_ref_concurrent <- get_ref_rep(dat_reproduction_concurrent)
@@ -212,8 +196,10 @@ p_reproduction_concurrent <-
 
 ## delayed ---------------------------------
 
-p_reproduction_delayed <- basic_curve_plot(curve_data = dat_reproduction_delayed, 
-                                           empirical_data = dat_delayed %>% filter(trial_type=='reproduction'))
+p_reproduction_delayed <- 
+  basic_curve_plot(curve_data = dat_reproduction_delayed, 
+                   empirical_data = dat_delayed %>% filter(trial_type=='reproduction')) +
+  ggtitle('Reproduction task')
 
 # Get target length associated with reference reproduction
 rep_ref_delayed <- get_ref_rep(dat_reproduction_delayed)
@@ -259,7 +245,7 @@ p_reproduction_combined <-
         legend.position = 'none') +
   geom_text(data=get_bf_d(data = rep_ref_combined %>% select(-data)), 
             aes(x=400, y= 460, label=label), size=2.8, parse=TRUE, inherit.aes = FALSE) +
-  ggtitle('Length reproduction')
+  ggtitle('Reproduction task')
 
 # Add bias direction legend
 p_reproduction_combined <-

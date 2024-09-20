@@ -11,7 +11,6 @@ source('scripts/funcs.R')
 dat <- bind_rows(read_csv('data/raw_concurrent.csv', col_types = cols()), 
                  read_csv('data/raw_delayed.csv', col_types = cols()))
 
-
 # Count subjects pre-filtering --------------------------------------------
 
 # confidence_type   bias_source     n

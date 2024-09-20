@@ -1,3 +1,28 @@
+p_load(tidyr)
+
+
+# Labels ------------------------------------------------------------------
+
+# Bias source label
+label_bias_source  <-  c('baserate' = 'Base-rate', 
+                      'mullerlyer' = 'Müller-Lyer',
+                      'payoff' = 'Payoff')
+# Bias direction label
+label_bias_direction <-  c('long'='Long', 'short'='Short')
+
+# Experiment
+label_experiments <- c('concurrent'='Concurrent confidence', 'delayed'='Delayed confidence')
+
+# Bias source and bias direction label
+label_bias_source_direction <- c('mullerlyer_short'='Müller-Lyer biased-to-short', 
+                                 'mullerlyer_long'='Müller-Lyer biased-to-long', 
+                                 'baserate_short'='Base rate biased-to-short', 
+                                 'baserate_long'='Base rate biased-to-long', 
+                                 'payoff_short'='Payoff biased-to-short', 
+                                 'payoff_long'='Payoff biased-to-long')
+
+# Functions ---------------------------------------------------------------
+
 # Calculate signal detection theory criterion and d'
 sdt_calc <- 
   function (hits, misses, crrej, far) 
@@ -106,7 +131,7 @@ get_crossvalidation <- function(...) {
 }
 
 shorter_bf_value <- function(bf) {
-  if (bf < 1) {
+  if (bf < 3) {
     bf <- round(bf, 2)
   } else if (bf > 1) {
     if (nchar(round(bf)) > 3) {
@@ -185,11 +210,12 @@ basic_curve_plot <- function(curve_data, empirical_data) {
     facet_wrap(. ~ bias_source, labeller = labeller(bias_source  = get_subject_count_labels(curve_data))) +
     scale_linetype_manual(values = c('short'=1, 'long'=5)) +
     # Single-subject fitted curves
-    geom_line(aes(color=bias_source), alpha=.05, show.legend = FALSE) +
+    geom_line(aes(color=bias_source, linetype=bias_direction), alpha=.05, show.legend = FALSE) +
     # bias_source summary
     geom_line(data = line_summary, 
               aes(x=target_length, y=value, 
                   group=bias_direction, 
+                  linetype=bias_direction,
                   color=interaction(bias_source, bias_direction ,sep = '_')), 
               size=.6,
               show.legend = TRUE) +
@@ -198,18 +224,23 @@ basic_curve_plot <- function(curve_data, empirical_data) {
   # Plot real data average and error bars ============================================
   p <-
     p +
-    geom_point(data = points_summary, 
-               aes(x=target_length, y=answer, 
-                   group=interaction(bias_direction, target_length), 
-                   color=interaction(bias_source, bias_direction, sep = '_')),
-               show.legend = FALSE) +
     geom_errorbar(data = points_summary,
                   aes(x=target_length, y=answer, 
                       ymin=answer-se, ymax=answer+se,
                       group=interaction(bias_direction, target_length),
                       color=interaction(bias_source, bias_direction, sep = '_')),
                   width=4,
-                  show.legend = FALSE) 
+                  show.legend = FALSE) +
+    geom_point(data = points_summary, 
+               aes(x=target_length, y=answer, 
+                   group=interaction(bias_direction, target_length), 
+                   color=interaction(bias_source, bias_direction, sep = '_')),
+               show.legend = TRUE) 
+  
+  # assign linetype
+  p <- p + 
+    scale_linetype_manual(breaks = c('short', 'long'), labels=c('Short', 'Long'), values = c(2, 1))
+  
   return(p)
 }
 
@@ -277,7 +308,7 @@ add_pse_to_plot <- function(base_plot, pse_data, pse_position, reproduction_plot
       y_end <- y_pos_pse_estimate - 18
     } else {
       y_pos_pse_estimate <- .1
-      y_end <-  0
+      y_end <-  -.05
     }
     
   } 
@@ -303,10 +334,10 @@ add_pse_to_plot <- function(base_plot, pse_data, pse_position, reproduction_plot
                    inherit.aes = FALSE, show.legend = FALSE, size=.5) +
       geom_point(data=pse_data, aes(x=threshold, y=y_pos_pse_estimate,
                                     color=interaction(bias_source, bias_direction, sep = '_')), 
-                 inherit.aes = FALSE, show.legend = FALSE, size=.3) +
+                 inherit.aes = FALSE, show.legend = FALSE, size=1) +
       geom_errorbarh(data=pse_data, aes(xmax=threshold+se, xmin=threshold-se, y=y_pos_pse_estimate, 
                                         color=interaction(bias_source, bias_direction, sep = '_')), 
-                     height=.03, inherit.aes = FALSE, show.legend = FALSE)
+                     height=.05, inherit.aes = FALSE, show.legend = FALSE)
   }
 }
 
