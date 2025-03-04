@@ -1,0 +1,1083 @@
+---
+title: "ordinal_modelling"
+author: "Nicolás Sánchez-Fuenzalida"
+date: "2024-02-22"
+output: html_document
+params:
+  exp_data: 'exp1'
+---
+
+```{r read_arg, include=FALSE}
+# set which experiments to analyze 
+# exp1, exp2 or both
+exp_data <- params$exp_data
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Packages
+if (!require('pacman', quietly = TRUE)) install.packages('pacman'); library('pacman', quietly = TRUE)
+p_load(here, readr, BayesFactor, magrittr, dplyr, purrr, stringr, ggplot2)
+source(here('scripts/funcs.R'))
+```
+
+```{r}
+# to reproduce results
+set.seed(seed = 12345)
+```
+
+### Data
+
+```{r}
+
+# Read data
+if (exp_data == 'both') {
+  
+  # Read decision data
+  dec_dat <-
+    bind_rows(
+      read_csv(here('data/processed/decision_predicted_curve_concurrent.csv'), show_col_types = FALSE),
+      read_csv(here('data/processed/decision_predicted_curve_delayed.csv'), show_col_types = FALSE)
+    )
+  
+  # Read confidence data
+  conf_dat <-
+    bind_rows(
+      read_csv(here('data/processed/confidence_predicted_curve_concurrent.csv'), show_col_types = FALSE),
+      read_csv(here('data/processed/confidence_predicted_curve_delayed.csv'), show_col_types = FALSE)
+    )
+  
+} else if (exp_data == 'exp1') {
+  
+  # Read decision data
+  dec_dat <-
+    bind_rows(
+      read_csv(here('data/processed/decision_predicted_curve_concurrent.csv'), show_col_types = FALSE)
+    )
+  
+  # Read confidence data
+  conf_dat <-
+    bind_rows(
+      read_csv(here('data/processed/confidence_predicted_curve_concurrent.csv'), show_col_types = FALSE)
+    )
+  
+} else if (exp_data == 'exp2') {
+  
+  # Read decision data
+  dec_dat <-
+    bind_rows(
+      read_csv(here('data/processed/decision_predicted_curve_delayed.csv'), show_col_types = FALSE)
+    )
+  
+  # Read confidence data
+  conf_dat <-
+    bind_rows(
+      read_csv(here('data/processed/confidence_predicted_curve_delayed.csv'), show_col_types = FALSE)
+    )
+}
+
+```
+
+### Get PSE and PMU
+
+```{r}
+
+# Get PSE
+dec_dat <- 
+  dec_dat %>% 
+  get_pse() %>% 
+  ungroup() %>% 
+  select(-data)
+
+# Get PMU
+conf_dat <- 
+  conf_dat %>% 
+  get_lowest_conf() %>% 
+  ungroup() %>% 
+  select(-value)
+
+# Remove participants without point to test -------------------------------
+
+# remove participants with bad fits
+bad_fits <- read_csv(here('data/processed/bad_fits.csv'), show_col_types = FALSE)
+# filter out people
+dec_dat <- dec_dat %>% anti_join(bad_fits %>% select(-c(data, type)), by = join_by(confidence_type, participant, bias_source))
+conf_dat <- conf_dat %>% anti_join(bad_fits %>% select(-c(data, type)), by = join_by(confidence_type, participant, bias_source))
+
+# Calculate differences in decision PSE
+dec_dat <- dec_dat %>% 
+  pivot_wider(names_from = bias_direction, values_from = target_length) %>% 
+  mutate(pse = short - long) %>% 
+  select(-c(short, long))
+
+# Calculate differences in confidence PMU
+conf_dat <- conf_dat %>% 
+  pivot_wider(names_from = bias_direction, values_from = target_length) %>% 
+  mutate(pmu = short - long) %>% 
+  select(-c(short, long))
+
+```
+
+```{r}
+
+# Combine all data
+dat <- full_join(dec_dat, conf_dat, by = join_by(confidence_type, participant, bias_source))
+
+# Put data in long format
+dat <- dat %>% 
+  pivot_longer(names_to = 'task', values_to = 'value', cols = c(pse, pmu))
+
+# Renumber participants. In both experiments participant numbers are counted from 0 so there will be overlapping in numbers.
+dat <-
+  dat %>%
+  group_by(confidence_type, participant) %>%
+  mutate(participant = sprintf('S%04d', (cur_group_id()))) %>%
+  ungroup()
+
+# Create condition code
+dat <- 
+  dat %>% 
+  mutate(cond_code = paste0(substr(bias_source, 1, 2), substr(task, 1, 3))) 
+
+# Sort data. This is not necessary for the analysis, it just makes the contrast plots easier to read
+dat <- dat %>% 
+  arrange(bias_source, task)
+
+# Count subjects
+dat %>% 
+  group_by(bias_source) %>% 
+  select(bias_source, participant) %>% 
+  distinct() %>% 
+  reframe(count = n())
+
+# Summarize estimation
+dat %>% 
+  group_by(bias_source, task) %>% 
+  reframe(value=mean(value)) %>% 
+  pivot_wider(names_from = task, values_from = value) %>% 
+  mutate(delta = pmu - pse)
+
+```
+
+## Get functions to create contrasts
+
+```{r}
+source(here('scripts/ordinal_model_scripts/functions_ordinal_modeling_diff_dec_conf.R'))
+```
+
+```{r}
+# Contrast direction
+contrast_value_pse <- -.5
+contrast_value_pmu <- .5
+```
+
+## Bayes sampling
+
+### Settings
+
+Same settings for all models.
+
+```{r}
+# Iteration N
+no_iter <- 5000
+filter_iter <- .1
+# R scale (effect size)
+r <- .707
+```
+
+## Contrast matrices
+
+### Subject contrast
+
+This chunk creates a contrast matrix to indicate to which subject each observation belongs.
+
+```{r}
+# Run analysis including subject contrast?
+include_id_contrast = TRUE
+
+# Get id contrast matrix
+id_contrast <- get_id_contrast(id_col = dat %>% select(participant) %>% rename(id=participant))
+
+# Display matrix
+image(t(id_contrast))
+
+```
+
+### Contrast A: decision & confidence are different in all conditions
+
+```{r}
+# Get contrast
+X_a <- get_contrast_A(dat, val_pse = contrast_value_pse, val_pmu = contrast_value_pmu)
+# Full contrast image
+image(t(X_a))
+# Only manipulation contrast
+make_condition_contrast_image(X_a)
+```
+
+#### nWayAov
+
+```{r}
+# Get gMap
+gMap <- get_gMap(X_a)
+# Run nWayAOV
+out <- get_bf_samp(y = dat$value, x = X_a, gMap = gMap, rscale = r, 
+                   no_iter = no_iter, filter_iter = filter_iter)
+# Get simple BF 
+bf_out_a <- out[[1]]
+# Get sampled data
+samp_out_a <- out[[2]]
+```
+
+##### Check estimated values
+
+```{r}
+checkmeans_a <- with(dat, tapply(value, cond_code, mean))
+pm.effest.a <- colMeans(samp_out_a)
+```
+
+Contrast A :
+
+- mu: pay-off intercept
+- beta 1: muller-lyer intercept
+- beta 2: muller-lyer (pse-pmu)
+- beta 3: base-rate intercept
+- beta 4: base-rate (pse-pmu)
+- beta 5: pay-off (pse-pmu)
+
+```{r}
+
+# get bias manipulation beta names
+beta_names <- paste0('beta_', grep('x[0-9]{1}$', colnames(X_a)))
+
+# Rename columns
+sampled_means_a <-
+  set_names(pm.effest.a[c('mu', beta_names)], c('mu', 'ml_int', 'ml_bd', 'br_int', 'br_bd', 'po_bd'))
+
+# Compare means
+checkmeans_a 
+c(
+  'bapmu' = sampled_means_a['mu'] + sampled_means_a['br_int'] + contrast_value_pmu * sampled_means_a['br_bd'],
+  'bapse' = sampled_means_a['mu'] + sampled_means_a['br_int'] + contrast_value_pse * sampled_means_a['br_bd'],
+  
+  'mupmu' = sampled_means_a['mu'] + sampled_means_a['ml_int'] + contrast_value_pmu * sampled_means_a['ml_bd'],
+  'mupse' = sampled_means_a['mu'] + sampled_means_a['ml_int'] + contrast_value_pse * sampled_means_a['ml_bd'],
+  
+  'papmu' = sampled_means_a['mu'] + contrast_value_pmu * sampled_means_a['po_bd'],
+  'papse' = sampled_means_a['mu'] + contrast_value_pse * sampled_means_a['po_bd']
+  
+)
+
+```
+
+### Contrast E: decision & confidence are different in the Muller-Lyer condition, no difference in base rate and payoff
+
+```{r}
+# Get contrast
+X_e <- get_contrast_E(dat, val_pse = contrast_value_pse, val_pmu = contrast_value_pmu)
+# Full contrast image
+image(t(X_e))
+# Only manipulation contrast
+make_condition_contrast_image(X_e)
+```
+
+#### nWayAov
+
+```{r}
+# Get gMap
+gMap <- get_gMap(X_e)
+# Run nWayAOV
+out <- get_bf_samp(y = dat$value, x = X_e, gMap = gMap, rscale = r, 
+                   no_iter = no_iter, filter_iter = filter_iter)
+# Get simple BF 
+bf_out_e <- out[[1]]
+# Get sampled data
+samp_out_e <- out[[2]]
+```
+
+#### Check estimated values
+
+```{r}
+pm.effest.e <- colMeans(samp_out_e)
+```
+
+Contrasts:
+
+- mu: payoff intercept
+- beta 1: muller-lyer intercept
+- beta 2: muller-lyer (pse-pmu)
+- beta 3: base-rate intercept
+
+```{r}
+# get bias manipulation beta names
+beta_names <- paste0('beta_', grep('x[0-9]{1}$', colnames(X_e)))
+
+# Rename columns
+sampled_means_e <- 
+  set_names(pm.effest.e[c('mu', beta_names)], c('mu', 'ml_int', 'ml_bd', 'br_int'))
+
+
+# Sampled means
+c(
+  'ba' = dat %>% filter(bias_source == 'baserate') %>% reframe(value=mean(value)) %>% pull(),
+  'pa' = dat %>% filter(bias_source == 'payoff') %>% reframe(value=mean(value)) %>% pull(),
+  
+  'mupse' = dat %>% filter(bias_source == 'mullerlyer', task == 'pse') %>% reframe(value=mean(value)) %>% pull(),
+  'mupmu' = dat %>% filter(bias_source == 'mullerlyer', task == 'pmu') %>% reframe(value=mean(value)) %>% pull()
+)
+# Predicted means
+c(
+  'ba' = sampled_means_e['mu'] + sampled_means_e['br_int'],
+  'pa' = sampled_means_e['mu'],
+  'mupse' = sampled_means_e['mu'] + sampled_means_e['ml_int'] + contrast_value_pse * sampled_means_e['ml_bd'],
+  'mupmu' = sampled_means_e['mu'] + sampled_means_e['ml_int'] + contrast_value_pmu * sampled_means_e['ml_bd']
+)
+
+```
+
+### Contrast F: No effect in any bias source [(mulo = mush) != (balo == bash) != (palo = pash)]
+
+```{r}
+# Get contrast
+X_f <- get_contrast_F(dat)
+# Full contrast image
+image(t(X_f))
+# Only manipulation contrast
+make_condition_contrast_image(X_f)
+```
+
+#### nWayAov
+
+```{r}
+# Get gMap
+gMap <- get_gMap(X_f)
+# Run nWayAOV
+out <- get_bf_samp(y = dat$value, x = X_f, gMap = gMap, rscale = r, 
+                   no_iter = no_iter, filter_iter = filter_iter)
+# Get simple BF 
+bf_out_f <- out[[1]]
+# Get sampled data
+samp_out_f <- out[[2]]
+```
+
+#### Check estimated values
+
+Contrasts:
+
+- mu: payoff intercept
+- beta 1: muller-lyer intercept
+- beta 2: base-rate intercept
+
+```{r}
+checkmeans_f <- with(dat, tapply(value, bias_source, mean))
+pm.effest.f <- colMeans(samp_out_f)
+```
+
+
+```{r}
+# get bias manipulation beta names
+beta_names <- paste0('beta_', grep('x[0-9]{1}$', colnames(X_f)))
+
+# Rename columns
+sampled_means_f <- 
+  set_names(pm.effest.f[c('mu', beta_names)], c('mu', 'ml_int', 'br_int'))
+
+
+# Compare means
+checkmeans_f
+c(
+  'ba' = sampled_means_f['mu'] + sampled_means_f['br_int'],
+  'ml' = sampled_means_f['mu'] + sampled_means_f['ml_int'],
+  'pa' = sampled_means_f['mu']
+)
+
+```
+
+### Contrast G: Bias direction effect in base rate and Muller-Lyer, no effect in payoff [(mulo > mush) > (balo > bash) & (palo = pash)]
+
+```{r}
+# Get contrast
+X_g <- get_contrast_G(dat, val_pse = contrast_value_pse, val_pmu = contrast_value_pmu)
+# Full contrast image
+image(t(X_g))
+# Only manipulation contrast
+make_condition_contrast_image(X_g)
+```
+
+#### nWayAov
+
+```{r}
+# Get gMap
+gMap <- get_gMap(X_g)
+# Run nWayAOV
+out <- get_bf_samp(y = dat$value, x = X_g, gMap = gMap, rscale = r, 
+                   no_iter = no_iter, filter_iter = filter_iter)
+# Get simple BF 
+bf_out_g <- out[[1]]
+# Get sampled data
+samp_out_g <- out[[2]]
+```
+
+
+#### Check estimated values
+
+```{r}
+pm.effest.g <- colMeans(samp_out_g)
+```
+
+Contrasts:
+
+- mu: payoff intercept
+- beta 1: muller-lyer intercept
+- beta 2: muller-lyer (pse-pmu)
+- beta 3: base-rate intercept
+- beta 4: base-rate (pse-pmu)
+
+```{r}
+# get bias manipulation beta names
+beta_names <- paste0('beta_', grep('x[0-9]{1}$', colnames(X_g)))
+
+# Rename columns
+sampled_means_g <- 
+  set_names(pm.effest.g[c('mu', beta_names)], c('mu', 'ml_int', 'ml_bd', 'br_int', 'br_bd'))
+```
+
+
+```{r}
+
+c(
+  checkmeans_a[c('bapse','bapmu', 'mupse', 'mupmu')],
+  'pa' = dat %>% filter(bias_source == 'payoff') %>% reframe(value=mean(value)) %>% pull()
+)
+
+c(
+  'bapse' = sampled_means_g['mu'] + sampled_means_g['br_int'] - .5 * sampled_means_g['br_bd'],
+  'bapmu' = sampled_means_g['mu'] + sampled_means_g['br_int'] + .5 * sampled_means_g['br_bd'],
+  
+  'mupse' = sampled_means_g['mu'] + sampled_means_g['ml_int'] - .5 * sampled_means_g['ml_bd'],
+  'mupse' = sampled_means_g['mu'] + sampled_means_g['ml_int'] + .5 * sampled_means_g['ml_bd'],
+  
+  'pa' = sampled_means_g['mu']
+)
+
+```
+
+
+### Contrast H: Bias direction effect in Payoff and Muller-Lyer, no effect in base rate [(mulo > mush) > (palo > pash) & (balo = bash)]
+
+```{r}
+# Get contrast
+X_h <- get_contrast_H(dat, val_pse = contrast_value_pse, val_pmu = contrast_value_pmu)
+# Full contrast image
+image(t(X_h))
+# Only manipulation contrast
+make_condition_contrast_image(X_h)
+```
+
+#### nWayAov
+
+```{r}
+# Get gMap
+gMap <- get_gMap(X_h)
+# Run nWayAOV
+out <- get_bf_samp(y = dat$value, x = X_h, gMap = gMap, rscale = r, 
+                   no_iter = no_iter, filter_iter = filter_iter)
+# Get simple BF 
+bf_out_h <- out[[1]]
+# Get sampled data
+samp_out_h <- out[[2]]
+```
+
+#### Check estimated values
+
+```{r}
+pm.effest.h <- colMeans(samp_out_h)
+```
+
+Contrasts:
+
+- mu: payoff intercept
+- beta 1: muller-lyer intercept
+- beta 2: muller-lyer (pse-pmu)
+- beta 3: payoff intercept
+- beta 4: payoff (pse-pmu)
+
+```{r}
+# get bias manipulation beta names
+beta_names <- paste0('beta_', grep('x[0-9]{1}$', colnames(X_h)))
+
+# Rename columns
+sampled_means_h <- 
+  set_names(pm.effest.h[c('mu', beta_names)], c('mu', 'ml_int', 'ml_bd', 'br_int', 'po_bd'))
+```
+
+
+```{r}
+
+c(
+  checkmeans_a[c('papse', 'papmu', 'mupse', 'mupmu')],
+  'ba' = dat %>% filter(bias_source == 'baserate') %>% reframe(value=mean(value)) %>% pull()
+)
+
+c(
+  
+  'papse' = sampled_means_h['mu'] - .5 * sampled_means_h['po_bd'],
+  'papmu' = sampled_means_h['mu'] + .5 * sampled_means_h['po_bd'],
+  
+  'mupse' = sampled_means_h['mu'] + sampled_means_h['ml_int'] - .5 * sampled_means_h['ml_bd'],
+  'mupmu' = sampled_means_h['mu'] + sampled_means_h['ml_int'] + .5 * sampled_means_h['ml_bd'],
+  
+  'ba' = sampled_means_h['mu'] + sampled_means_h['br_int']
+  
+)
+
+```
+
+### Contrast I: Bias direction effect in Payoff and Base rate, no effect in payoff [(mulo > mush) > (balo > bash) & (palo = pash)]
+
+```{r}
+# Get contrast
+X_i <- get_contrast_I(dat, val_pse = contrast_value_pse, val_pmu = contrast_value_pmu)
+# Full contrast image
+image(t(X_i))
+# Only manipulation contrast
+make_condition_contrast_image(X_i)
+```
+
+#### nWayAov
+
+```{r}
+# Get gMap
+gMap <- get_gMap(X_i)
+# Run nWayAOV
+out <- get_bf_samp(y = dat$value, x = X_i, gMap = gMap, rscale = r, 
+                   no_iter = no_iter, filter_iter = filter_iter)
+# Get simple BF 
+bf_out_i <- out[[1]]
+# Get sampled data
+samp_out_i <- out[[2]]
+```
+
+#### Check estimated values
+
+```{r}
+pm.effest.i <- colMeans(samp_out_i)
+```
+
+Contrasts:
+
+- mu: payoff intercept
+- beta 1: muller-lyer intercept
+- beta 2: base-rate intercept
+- beta 3: base-rate (pse-pmu)
+- beta 4: payoff (pse-pmu)
+
+```{r}
+# get bias manipulation beta names
+beta_names <- paste0('beta_', grep('x[0-9]{1}$', colnames(X_i)))
+
+# Rename columns
+sampled_means_i <- 
+  set_names(pm.effest.i[c('mu', beta_names)], c('mu', 'ml_int', 'br_int', 'br_bd', 'po_bd'))
+```
+
+
+```{r}
+
+
+c(mu = mean(checkmeans_a[c('mupse', 'mupmu')]), checkmeans_a[c('papse', 'papmu', 'bapse', 'bapmu')])
+
+c(
+  'mu' = sampled_means_i['mu'] + sampled_means_i['ml_int'],
+  
+  'papse' = sampled_means_i['mu'] - .5 * sampled_means_i['po_bd'],
+  'papmu' = sampled_means_i['mu'] + .5 * sampled_means_i['po_bd'],
+  
+  'bapse' = sampled_means_i['mu'] + sampled_means_i['br_int'] - .5 * sampled_means_i['br_bd'],
+  'bapmu' = sampled_means_i['mu'] + sampled_means_i['br_int'] + .5 * sampled_means_i['br_bd']
+  
+)
+
+```
+
+### Contrast J: Bias direction effect in the payoff condition, no effect in base rate and muller lyer [(palo > pash) & (balo == bash) & (mulo = mush)]
+
+```{r}
+# Get contrast
+X_j <- get_contrast_J(dat, val_pse = contrast_value_pse, val_pmu = contrast_value_pmu)
+# Full contrast image
+image(t(X_j))
+# Only manipulation contrast
+make_condition_contrast_image(X_j)
+```
+
+#### nWayAov
+
+```{r}
+# Get gMap
+gMap <- get_gMap(X_j)
+# Run nWayAOV
+out <- get_bf_samp(y = dat$value, x = X_j, gMap = gMap, rscale = r, 
+                   no_iter = no_iter, filter_iter = filter_iter)
+# Get simple BF 
+bf_out_j <- out[[1]]
+# Get sampled data
+samp_out_j <- out[[2]]
+```
+
+#### Check estimated values
+
+```{r}
+pm.effest.j <- colMeans(samp_out_j)
+```
+
+Contrasts:
+
+- mu: payoff intercept
+- beta 1: muller-lyer intercept
+- beta 2: base-rate intercept
+- beta 3: payoff (pse-pmu)
+
+```{r}
+# get bias manipulation beta names
+beta_names <- paste0('beta_', grep('x[0-9]{1}$', colnames(X_j)))
+
+# Rename columns
+sampled_means_j <- 
+  set_names(pm.effest.j[c('mu', beta_names)], c('mu', 'ml_int', 'br_int', 'pa_bd'))
+```
+
+
+```{r}
+
+c(
+  'ba' = dat %>% filter(bias_source == 'baserate') %>% reframe(value=mean(value)) %>% pull(),
+  'pa' = dat %>% filter(bias_source == 'payoff') %>% reframe(value=mean(value)) %>% pull(),
+  checkmeans_a['papse'], 
+  checkmeans_a['papmu']
+)
+
+c(
+  
+  'ba' = sampled_means_j['mu'] + sampled_means_j['br_int'],
+  'mu' = sampled_means_j['mu'] + sampled_means_j['ml_int'],
+  
+  'papse' = sampled_means_j['mu'] - .5 * sampled_means_j['pa_bd'],
+  'papmu' = sampled_means_j['mu'] + .5 * sampled_means_j['pa_bd']
+  
+  
+)
+
+```
+
+### Contrast K: Bias direction effect in the base-rate condition, no effect in payoff and muller lyer [(balo > bash) & (palo == pash) & (mulo = mush)]
+
+```{r}
+# Get contrast
+X_k <- get_contrast_K(dat, val_pse = contrast_value_pse, val_pmu = contrast_value_pmu)
+# Full contrast image
+image(t(X_k))
+# Only manipulation contrast
+make_condition_contrast_image(X_k)
+```
+
+#### nWayAov
+
+```{r}
+# Get gMap
+gMap <- get_gMap(X_k)
+# Run nWayAOV
+out <- get_bf_samp(y = dat$value, x = X_k, gMap = gMap, rscale = r, 
+                   no_iter = no_iter, filter_iter = filter_iter)
+# Get simple BF 
+bf_out_k <- out[[1]]
+# Get sampled data
+samp_out_k <- out[[2]]
+```
+
+#### Check estimated values
+
+```{r}
+pm.effest.k <- colMeans(samp_out_k)
+```
+
+Contrasts:
+
+- mu: payoff intercept
+- beta 1: muller-lyer intercept
+- beta 2: base-rate intercept
+- beta 3: payoff (pse-pmu)
+
+```{r}
+# get bias manipulation beta names
+beta_names <- paste0('beta_', grep('x[0-9]{1}$', colnames(X_k)))
+
+# Rename columns
+sampled_means_k <- 
+  set_names(pm.effest.k[c('mu', beta_names)], c('mu', 'ml_int', 'br_int', 'ba_bd'))
+
+c(
+  'bapse' = checkmeans_a['bapse'],
+  'bapmu' = checkmeans_a['bapmu'],
+  'mu' = dat %>% filter(bias_source == 'mullerlyer') %>% reframe(value=mean(value)) %>% pull(),
+  'pa' = dat %>% filter(bias_source == 'payoff') %>% reframe(value=mean(value)) %>% pull()
+)
+
+c(
+  
+  'bapse' = sampled_means_k['mu'] + sampled_means_k['br_int'] - .5 * sampled_means_k['ba_bd'],
+  'bapmu' = sampled_means_k['mu'] + sampled_means_k['br_int'] + .5 * sampled_means_k['ba_bd'],
+  'mu' = sampled_means_k['mu'] + sampled_means_k['ml_int'],
+  'papse' = sampled_means_k['mu'] 
+  
+)
+
+```
+
+## Priors
+
+```{r}
+# Parameters for prior sampling
+R <- 1000000
+mu.theta.sd <- 1
+# Prior sample
+ml <- rnorm(R, 0, mu.theta.sd)
+br <- rnorm(R, 0, mu.theta.sd)
+po <- rnorm(R, 0, mu.theta.sd)
+
+```
+
+## Posteriors
+
+```{r}
+
+# Number of participant contrast columns
+add_to_beta_index <- ncol(id_contrast)
+
+### CONTRAST A -----------------------------------------------------------------
+
+priorA <- mean(ml > 0 & br > 0 & po > 0)
+
+# There is an effect in all conditions
+make_condition_contrast_image(X_a)
+
+# Column names of beta columns of bias direction effects
+ml_bd <- paste0('beta_', 2 + add_to_beta_index)
+br_bd <- paste0('beta_', 4 + add_to_beta_index)
+po_bd <- paste0('beta_', 5 + add_to_beta_index)
+
+ml_effect <- samp_out_a[, ml_bd]
+br_effect <- samp_out_a[, br_bd]
+po_effect <- samp_out_a[, po_bd]
+
+ml_pos <- ml_effect > 0
+ml_neg <- ml_effect < 0
+br_pos <- br_effect > 0
+br_neg <- br_effect < 0
+po_pos <- po_effect > 0
+po_neg <- po_effect < 0
+
+# dec > conf in all conditions
+postAA <- mean(ml_pos & br_pos & po_pos)
+# dec > conf in ml/br, dec < conf in po
+postAB <- mean(ml_pos & br_pos & po_neg)
+# dec > conf in ml/po & dec < conf in br
+postAC <- mean(ml_pos & br_neg & po_pos)
+# dec > conf in ml & dec < conf in br/po
+postAD <- mean(ml_pos & br_neg & po_neg)
+# dec > conf in br/po & dec < conf in ml
+postAE <- mean(ml_neg & br_pos & po_pos)
+# dec > conf in br & dec < conf in ml/po
+postAF <- mean(ml_neg & br_pos & po_neg)
+# dec > conf in po & dec < conf in ml/br
+postAG <- mean(ml_neg & br_neg & po_pos)
+#dec < conf in all condition
+postAH <- mean(ml_neg & br_neg & po_neg)
+
+### CONTRAST E -----------------------------------------------------------------
+
+priorE <- mean(ml > 0)
+
+# There is an effect in all conditions
+make_condition_contrast_image(X_e)
+
+# Column names of beta columns of bias direction effects
+ml_bd <- paste0('beta_', 2 + add_to_beta_index)
+
+ml_effect <- samp_out_e[, ml_bd]
+
+ml_pos <- ml_effect > 0
+ml_neg <- ml_effect < 0
+
+# dec > conf
+postEA <- mean(ml_pos)
+# dec < conf 
+postEB <- mean(ml_neg)
+
+### CONTRAST F -----------------------------------------------------------------
+
+# There is an effect in all conditions
+make_condition_contrast_image(X_f)
+
+### CONTRAST G -----------------------------------------------------------------
+
+priorG <- mean(ml > 0 & br > 0)
+
+# There is an effect in all conditions
+make_condition_contrast_image(X_g)
+
+# Column names of beta columns of bias direction effects
+ml_bd <- paste0('beta_', 2 + add_to_beta_index)
+br_bd <- paste0('beta_', 4 + add_to_beta_index)
+
+ml_effect <- samp_out_g[, ml_bd]
+br_effect <- samp_out_g[, br_bd]
+
+ml_pos <- ml_effect > 0
+ml_neg <- ml_effect < 0
+br_pos <- br_effect > 0
+br_neg <- br_effect < 0
+
+# dec > conf in all conditions
+postGA <- mean(ml_pos & br_pos)
+# dec > conf in ml/po & dec < conf in br
+postGB <- mean(ml_pos & br_neg)
+# dec > conf in br/po & dec < conf in ml
+postGC <- mean(ml_neg & br_pos)
+# dec > conf in po & dec < conf in ml/br
+postGD <- mean(ml_neg & br_neg)
+
+### CONTRAST H -----------------------------------------------------------------
+
+priorH <- mean(ml > 0 & po > 0)
+
+# There is an effect in all conditions
+make_condition_contrast_image(X_h)
+
+# Column names of beta columns of bias direction effects
+ml_bd <- paste0('beta_', 2 + add_to_beta_index)
+po_bd <- paste0('beta_', 4 + add_to_beta_index)
+
+ml_effect <- samp_out_h[, ml_bd]
+po_effect <- samp_out_h[, po_bd]
+
+ml_pos <- ml_effect > 0
+ml_neg <- ml_effect < 0
+po_pos <- po_effect > 0
+po_neg <- po_effect < 0
+
+# dec > conf in all conditions
+postHA <- mean(ml_pos & po_pos)
+# dec > conf in ml/po & dec < conf in br
+postHB <- mean(ml_pos & po_neg)
+# dec > conf in br/po & dec < conf in ml
+postHC <- mean(ml_neg & po_pos)
+# dec > conf in po & dec < conf in ml/br
+postHD <- mean(ml_neg & po_neg)
+
+### CONTRAST I -----------------------------------------------------------------
+
+priorI <- mean(br > 0 & po > 0)
+
+# There is an effect in all conditions
+make_condition_contrast_image(X_i)
+
+# Column names of beta columns of bias direction effects
+br_bd <- paste0('beta_', 3 + add_to_beta_index)
+po_bd <- paste0('beta_', 4 + add_to_beta_index)
+
+br_effect <- samp_out_i[, ml_bd]
+po_effect <- samp_out_i[, po_bd]
+
+br_pos <- br_effect > 0
+br_neg <- br_effect < 0
+po_pos <- po_effect > 0
+po_neg <- po_effect < 0
+
+# dec > conf in all conditions
+postIA <- mean(br_pos & po_pos)
+# dec > conf in br/po & dec < conf in br
+postIB <- mean(br_pos & po_neg)
+# dec > conf in br/po & dec < conf in br
+postIC <- mean(br_neg & po_pos)
+# dec > conf in po & dec < conf in br/br
+postID <- mean(br_neg & po_neg)
+
+
+### CONTRAST J -----------------------------------------------------------------
+
+priorJ <- mean(po > 0)
+
+# There is an effect in all conditions
+make_condition_contrast_image(X_j)
+
+# Column names of beta columns of bias direction effects
+po_bd <- paste0('beta_', 3 + add_to_beta_index)
+
+po_effect <- samp_out_j[, po_bd]
+
+po_pos <- po_effect > 0
+po_neg <- po_effect < 0
+
+# dec > conf
+postJA <- mean(po_pos)
+# dec < conf 
+postJB <- mean(po_neg)
+
+### CONTRAST K -----------------------------------------------------------------
+
+priorK <- mean(br > 0)
+
+# There is an effect in all conditions
+make_condition_contrast_image(X_k)
+
+# Column names of beta columns of bias direction effects
+br_bd <- paste0('beta_', 3 + add_to_beta_index)
+
+br_effect <- samp_out_k[, br_bd]
+
+br_brs <- br_effect > 0
+br_neg <- br_effect < 0
+
+# dec > conf
+postKA <- mean(br_brs)
+# dec < conf 
+postKB <- mean(br_neg)
+
+```
+
+### Calculate ordinal BF
+
+```{r}
+
+# Unconstrained model
+bf_uN <- bf_out_f$bf
+
+# More-constrained models ---------------------------------
+
+# model AA
+bf_AA <- log(postAA / priorA) + bf_out_a$bf
+# model AB
+bf_AB <- log(postAB / priorA) + bf_out_a$bf
+# model AC
+bf_AC <- log(postAC / priorA) + bf_out_a$bf
+# model AD
+bf_AD <- log(postAD / priorA) + bf_out_a$bf
+# model AE
+bf_AE <- log(postAE / priorA) + bf_out_a$bf
+# model AF
+bf_AF <- log(postAF / priorA) + bf_out_a$bf
+# model AG
+bf_AG <- log(postAG / priorA) + bf_out_a$bf
+# model AH
+bf_AH <- log(postAH / priorA) + bf_out_a$bf
+
+# model EA
+bf_EA <- log(postEA / priorE) + bf_out_e$bf
+# model EB
+bf_EB <- log(postEB / priorE) + bf_out_e$bf
+
+# model GA
+bf_GA <- log(postGA / priorG) + bf_out_g$bf
+# model GB
+bf_GB <- log(postGB / priorG) + bf_out_g$bf
+# model GC
+bf_GC <- log(postGC / priorG) + bf_out_g$bf
+# model GD
+bf_GD <- log(postGD / priorG) + bf_out_g$bf
+
+# model HA
+bf_HA <- log(postHA / priorH) + bf_out_h$bf
+# model HB
+bf_HB <- log(postHB / priorH) + bf_out_h$bf
+# model HC
+bf_HC <- log(postHC / priorH) + bf_out_h$bf
+# model HD
+bf_HD <- log(postHD / priorH) + bf_out_h$bf
+
+# model IA
+bf_IA <- log(postIA / priorI) + bf_out_i$bf
+# model IB
+bf_IB <- log(postIB / priorI) + bf_out_i$bf
+# model IC
+bf_IC <- log(postIC / priorI) + bf_out_i$bf
+# model ID
+bf_ID <- log(postID / priorI) + bf_out_i$bf
+
+# model JA
+bf_JA <- log(postJA / priorJ) + bf_out_j$bf
+# model JB
+bf_JB <- log(postJB / priorJ) + bf_out_j$bf
+
+# model KA
+bf_KA <- log(postKA / priorK) + bf_out_k$bf
+# model KB
+bf_KB <- log(postKB / priorK) + bf_out_k$bf
+
+```
+
+## Make table with bf values
+
+```{r}
+bfs <- 
+  tribble(
+    ~model, ~bf, ~model_label,
+    'AA', bf_AA, 'ml+ & br+ & po+',
+    'AB', bf_AB, 'ml+ & br+ & po-',
+    'AC', bf_AC, 'ml+ & br- & po+',
+    'AD', bf_AD, 'ml+ & br- & po-',
+    'AE', bf_AE, 'ml- & br+ & po+',
+    'AF', bf_AF, 'ml- & br+ & po-',
+    'AG', bf_AG, 'ml- & br- & po+',
+    'AH', bf_AH, 'ml- & br- & po-',
+    
+    'EA', bf_EA, 'ml+ & br= & po=',
+    'EB', bf_EB, 'ml- & br= & po=',
+    
+    'GA', bf_GA, 'ml+ & br+ & po=',
+    'GB', bf_GB, 'ml+ & br- & po=',
+    'GC', bf_GC, 'ml- & br+ & po=',
+    'GD', bf_GD, 'ml- & br- & po=',
+    
+    'HA', bf_HA, 'ml+ & br= & po+',
+    'HB', bf_HB, 'ml+ & br= & po-',
+    'HC', bf_HC, 'ml- & br= & po+',
+    'HD', bf_HD, 'ml- & br= & po-',
+    
+    'IA', bf_IA, 'ml= & br+ & po+',
+    'IB', bf_IB, 'ml= & br+ & po-',
+    'IC', bf_IC, 'ml= & br- & po+',
+    'ID', bf_ID, 'ml= & br- & po-',
+    
+    'JA', bf_JA, 'ml= & br= & po+',
+    'JB', bf_JB, 'ml= & br= & po-',
+    
+    'KA', bf_KA, 'ml= & br+ & po=',
+    'KB', bf_KB, 'ml= & br- & po=',
+    
+    'UN', bf_uN, 'BR & ML & PO (no effect in all manipulations)'
+  )
+
+bfs %>%
+  write_csv(here(sprintf('data/ordinal_modeling/ord_models_conf-dec_%s.csv', exp_data)))
+
+```
+
+
+```{r}
+bfs_based <- bfs %>% 
+  mutate(baseline = bfs %>% filter(model == 'UN') %>% pull(bf),
+         bf_over_baseline = bf-baseline) %>% 
+  arrange(desc(bf_over_baseline)) %>% 
+  filter(bf_over_baseline > 0)
+
+bfs_based
+```
+
+
+```{r}
+bfs_based %>% 
+  mutate(bf_over_rest = exp(max(bf_over_baseline) - bf_over_baseline)) %>% filter(bf_over_rest < 100)
+```

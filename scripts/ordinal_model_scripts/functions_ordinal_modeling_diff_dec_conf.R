@@ -33,8 +33,6 @@ get_gMap <- function(contrast) {
   return(gMap)
 }
 
-
-
 # Contrast functions ------------------------------------------------------
 
 get_id_contrast <- function(id_col) {
@@ -63,22 +61,21 @@ get_id_contrast <- function(id_col) {
   
 }
 
-
-get_contrast_A <- function(dat, val_long, val_short) {
+get_contrast_A <- function(dat, val_pse, val_pmu) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
-  x2 <- ifelse(dat$cond_code == "mulo", val_long, 
-               ifelse(dat$cond_code == "mush", val_short, 0))    # ML bias direction effect
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
+  x2 <- ifelse(dat$cond_code == "mupse", val_pse, 
+               ifelse(dat$cond_code == "mupmu", val_pmu, 0))    # ML bias direction effect
   # Base rate
-  x3 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
-  x4 <- ifelse(dat$cond_code == "balo", val_long, 
-               ifelse(dat$cond_code == "bash", val_short, 0))    # BR bias direction effect
+  x3 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
+  x4 <- ifelse(dat$cond_code == "bapse", val_pse, 
+               ifelse(dat$cond_code == "bapmu", val_pmu, 0))    # BR bias direction effect
   # Payoff
   # The payoff condition is used as the intercept so it's not indicated in
   # contrast matrix and instead is always the 'mu' column in the sample data.
-  x5 <- ifelse(dat$cond_code == "palo", val_long, 
-               ifelse(dat$cond_code == "pash", val_short, 0))    # PO bias direction effect
+  x5 <- ifelse(dat$cond_code == "papse", val_pse, 
+               ifelse(dat$cond_code == "papmu", val_pmu, 0))    # PO bias direction effect
   
   # Combine all contrast columns into one matrix
   X_a <- cbind(x1, x2, x3, x4, x5)
@@ -92,15 +89,15 @@ get_contrast_A <- function(dat, val_long, val_short) {
   return(X_a)
 }
 
-get_contrast_B <- function(dat, val_long, val_short) {
+get_contrast_B <- function(dat, val_pse, val_pmu) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
   # Base rate
-  x2 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
+  x2 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
   # Bias direction irrespective of bias source
-  x3 <- ifelse(dat$bias_direction == 'long', val_long,       # bias direction effect
-               ifelse(dat$bias_direction == 'short', val_short, 0))
+  x3 <- ifelse(dat$task == 'pse', val_pse,       # bias direction effect
+               ifelse(dat$task == 'pmu', val_pmu, 0))
   
   # Combine all contrast columns into one matrix
   X_b <- cbind(x1, x2, x3)
@@ -114,20 +111,20 @@ get_contrast_B <- function(dat, val_long, val_short) {
   return(X_b)
 }
 
-get_contrast_C <- function(dat, val_long, val_short) {
+get_contrast_C <- function(dat, val_pse, val_pmu) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
   # Base rate
-  x2 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
+  x2 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
   # Muller-Lyer & Base rate bias direction
-  x3 <- ifelse(dat$cond_code %in% c("mulo", "balo"), val_long,  
-               ifelse(dat$cond_code %in% c("mush", "bash"), val_short, 0)) # bias direction effect
+  x3 <- ifelse(dat$cond_code %in% c("mupse", "bapse"), val_pse,  
+               ifelse(dat$cond_code %in% c("mupmu", "bapmu"), val_pmu, 0)) # bias direction effect
   # Payoff
   # The payoff condition is used as the intercept so it's not indicated in
   # contrast matrix and instead is always the 'mu' column in the sample data.
-  x4 <- ifelse(dat$cond_code == "palo", val_long, 
-               ifelse(dat$cond_code == "pash", val_short, 0))    # PO bias direction effect
+  x4 <- ifelse(dat$cond_code == "papse", val_pse, 
+               ifelse(dat$cond_code == "papmu", val_pmu, 0))    # PO bias direction effect
   
   # Combine all contrast columns into one matrix
   X_c <- cbind(x1, x2, x3, x4)
@@ -141,18 +138,18 @@ get_contrast_C <- function(dat, val_long, val_short) {
   return(X_c)
 }
 
-get_contrast_D <- function(dat, val_long, val_short) {
+get_contrast_D <- function(dat, val_pse, val_pmu) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
   # Muller-Lyer & Payoff bias direction
-  x2 <- ifelse(dat$cond_code %in% c("mulo", "palo"), val_long,  
-               ifelse(dat$cond_code %in% c("mush", "pash"), val_short, 0)) # bias direction effect
+  x2 <- ifelse(dat$cond_code %in% c("mupse", "papse"), val_pse,  
+               ifelse(dat$cond_code %in% c("mupmu", "papmu"), val_pmu, 0)) # bias direction effect
   
   # Base rate
-  x3 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
-  x4 <- ifelse(dat$cond_code == "balo", val_long, 
-               ifelse(dat$cond_code == "bash", val_short, 0))    # BR bias direction effect
+  x3 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
+  x4 <- ifelse(dat$cond_code == "bapse", val_pse, 
+               ifelse(dat$cond_code == "bapmu", val_pmu, 0))    # BR bias direction effect
   
   # Combine all contrast columns into one matrix
   X_d <- cbind(x1, x2, x3, x4)
@@ -166,14 +163,14 @@ get_contrast_D <- function(dat, val_long, val_short) {
   return(X_d)
 }
 
-get_contrast_E <- function(dat, val_long, val_short) {
+get_contrast_E <- function(dat, val_pse, val_pmu) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
-  x2 <- ifelse(dat$cond_code == "mulo", val_long, 
-               ifelse(dat$cond_code == "mush", val_short, 0))    # ML bias direction effect
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
+  x2 <- ifelse(dat$cond_code == "mupse", val_pse, 
+               ifelse(dat$cond_code == "mupmu", val_pmu, 0))    # ML bias direction effect
   # Base rate
-  x3 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
+  x3 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
   
   # Combine all contrast columns into one matrix
   X_e <- cbind(x1, x2, x3)
@@ -190,9 +187,9 @@ get_contrast_E <- function(dat, val_long, val_short) {
 get_contrast_F <- function(dat) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
   # Base rate
-  x2 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
+  x2 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
   
   # Combine all contrast columns into one matrix
   X_f <- cbind(x1, x2)
@@ -206,16 +203,16 @@ get_contrast_F <- function(dat) {
   return(X_f)
 }
 
-get_contrast_G <- function(dat, val_long, val_short) {
+get_contrast_G <- function(dat, val_pse, val_pmu) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
-  x2 <- ifelse(dat$cond_code == "mulo", val_long, 
-               ifelse(dat$cond_code == "mush", val_short, 0))    # ML bias direction effect
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
+  x2 <- ifelse(dat$cond_code == "mupse", val_pse, 
+               ifelse(dat$cond_code == "mupmu", val_pmu, 0))    # ML bias direction effect
   # Base rate
-  x3 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
-  x4 <- ifelse(dat$cond_code == "balo", val_long, 
-               ifelse(dat$cond_code == "bash", val_short, 0))    # BR bias direction effect
+  x3 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
+  x4 <- ifelse(dat$cond_code == "bapse", val_pse, 
+               ifelse(dat$cond_code == "bapmu", val_pmu, 0))    # BR bias direction effect
   
   # Combine all contrast columns into one matrix
   X_g <- cbind(x1, x2, x3, x4)
@@ -229,19 +226,19 @@ get_contrast_G <- function(dat, val_long, val_short) {
   return(X_g)
 }
 
-get_contrast_H <- function(dat, val_long, val_short) {
+get_contrast_H <- function(dat, val_pse, val_pmu) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
-  x2 <- ifelse(dat$cond_code == "mulo", val_long, 
-               ifelse(dat$cond_code == "mush", val_short, 0))    # ML bias direction effect
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
+  x2 <- ifelse(dat$cond_code == "mupse", val_pse, 
+               ifelse(dat$cond_code == "mupmu", val_pmu, 0))    # ML bias direction effect
   # Base rate
-  x3 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
+  x3 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
   # Payoff
   # The payoff condition is used as the intercept so it's not indicated in
   # contrast matrix and instead is always the 'mu' column in the sample data.
-  x4 <- ifelse(dat$cond_code == "palo", val_long, 
-               ifelse(dat$cond_code == "pash", val_short, 0))    # PO bias direction effect
+  x4 <- ifelse(dat$cond_code == "papse", val_pse, 
+               ifelse(dat$cond_code == "papmu", val_pmu, 0))    # PO bias direction effect
   
   
   # Combine all contrast columns into one matrix
@@ -257,19 +254,19 @@ get_contrast_H <- function(dat, val_long, val_short) {
 }
 
 
-get_contrast_I <- function(dat, val_long, val_short) {
+get_contrast_I <- function(dat, val_pse, val_pmu) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
   
-  x2 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
-  x3 <- ifelse(dat$cond_code == "balo", val_long, 
-               ifelse(dat$cond_code == "bash", val_short, 0))    # BR bias direction effect
+  x2 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
+  x3 <- ifelse(dat$cond_code == "bapse", val_pse, 
+               ifelse(dat$cond_code == "bapmu", val_pmu, 0))    # BR bias direction effect
   # Payoff
   # The payoff condition is used as the intercept so it's not indicated in
   # contrast matrix and instead is always the 'mu' column in the sample data.
-  x4 <- ifelse(dat$cond_code == "palo", val_long, 
-               ifelse(dat$cond_code == "pash", val_short, 0))    # PO bias direction effect
+  x4 <- ifelse(dat$cond_code == "papse", val_pse, 
+               ifelse(dat$cond_code == "papmu", val_pmu, 0))    # PO bias direction effect
   
   
   # Combine all contrast columns into one matrix
@@ -284,15 +281,15 @@ get_contrast_I <- function(dat, val_long, val_short) {
   return(X_i)
 }
 
-get_contrast_J <- function(dat, val_long, val_short) {
+get_contrast_J <- function(dat, val_pse, val_pmu) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
   # Base rate
-  x2 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
+  x2 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
   # Payoff
-  x3 <- ifelse(dat$cond_code == "palo", val_long, 
-               ifelse(dat$cond_code == "pash", val_short, 0))    # ML bias direction effect
+  x3 <- ifelse(dat$cond_code == "papse", val_pse, 
+               ifelse(dat$cond_code == "papmu", val_pmu, 0))    # ML bias direction effect
   
   # Combine all contrast columns into one matrix
   X_j <- cbind(x1, x2, x3)
@@ -306,14 +303,14 @@ get_contrast_J <- function(dat, val_long, val_short) {
   return(X_j)
 }
 
-get_contrast_K <- function(dat, val_long, val_short) {
+get_contrast_K <- function(dat, val_pse, val_pmu) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
   # Base rate
-  x2 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
-  x3 <- ifelse(dat$cond_code == "balo", val_long, 
-               ifelse(dat$cond_code == "bash", val_short, 0))    # ML bias direction effect
+  x2 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
+  x3 <- ifelse(dat$cond_code == "bapse", val_pse, 
+               ifelse(dat$cond_code == "bapmu", val_pmu, 0))    # ML bias direction effect
   
   # Combine all contrast columns into one matrix
   X_k <- cbind(x1, x2, x3)
@@ -327,18 +324,18 @@ get_contrast_K <- function(dat, val_long, val_short) {
   return(X_k)
 }
 
-get_contrast_L <- function(dat, val_long, val_short) {
+get_contrast_L <- function(dat, val_pse, val_pmu) {
   
   # Muller-Lyer
-  x1 <- ifelse(dat$cond_code %in% c("mulo", "mush"), 1, 0) # ML intercept
+  x1 <- ifelse(dat$cond_code %in% c("mupse", "mupmu"), 1, 0) # ML intercept
   # Muller-Lyer bias direction
-  x2 <- ifelse(dat$cond_code == "mulo", val_long, 
-               ifelse(dat$cond_code == "mush", val_short, 0))    # BR bias direction effect
+  x2 <- ifelse(dat$cond_code == "mupse", val_pse, 
+               ifelse(dat$cond_code == "mupmu", val_pmu, 0))    # BR bias direction effect
   # Base rate
-  x3 <- ifelse(dat$cond_code %in% c("balo", "bash"), 1, 0) # BR intercept
+  x3 <- ifelse(dat$cond_code %in% c("bapse", "bapmu"), 1, 0) # BR intercept
   # Base rate & Payoff bias direction
-  x4 <- ifelse(dat$cond_code %in% c("balo", "palo"), val_long,  
-               ifelse(dat$cond_code %in% c("bash", "pash"), val_short, 0)) # bias direction effect
+  x4 <- ifelse(dat$cond_code %in% c("bapse", "papse"), val_pse,  
+               ifelse(dat$cond_code %in% c("bapmu", "papmu"), val_pmu, 0)) # bias direction effect
   
   
   

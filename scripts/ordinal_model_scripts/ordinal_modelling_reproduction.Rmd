@@ -5,10 +5,12 @@ date: "2024-02-22"
 output: html_document
 params:
   task: 'reproduction'
+  exp_data: 'both'
 ---
 
 ```{r read_arg, include=FALSE}
 task <-  params$task
+exp_data <- params$exp_data
 ```
 
 ```{r, include=TRUE}
@@ -16,13 +18,15 @@ task <-  params$task
 # experiment can be delayed,concurrent or all (for both experiment combined). test on all data to get more power.
 task_to_analyze = task
 print(task_to_analyze)
+print(c(task_to_analyze, exp_data))
 ```
 
 ```{r}
 # Packages
 if (!require('pacman', quietly = TRUE)) install.packages('pacman'); library('pacman', quietly = TRUE)
 p_load(here, readr, BayesFactor, magrittr, dplyr, purrr, stringr, ggplot2)
-source('funcs.R')
+source(here('scripts/funcs.R'))
+source(here('scripts/ordinal_model_scripts/functions_ordinal_modeling.R'))
 ```
 
 ```{r}
@@ -34,26 +38,36 @@ set.seed(seed = 12345)
 ```{r}
 # Read data
 
-  
 # Both experiment are combined. The stimulus and task is the same in both
 # concurrent and delayed confidence experiment for the reproduction data.
 dat <-
-  bind_rows(read_csv(here(sprintf('data/processed/%s_predicted_curve_concurrent.csv', task_to_analyze)), col_types = cols()) %>% mutate(conf_type = 'concurrent'),
-            read_csv(here(sprintf('data/processed/%s_predicted_curve_delayed.csv', task_to_analyze)), col_types = cols()) %>% mutate(conf_type = 'delayed'))
+  bind_rows(read_csv(here(sprintf('data/processed/%s_predicted_curve_concurrent.csv', task_to_analyze)), show_col_types = FALSE) %>% mutate(conf_type = 'concurrent'),
+            read_csv(here(sprintf('data/processed/%s_predicted_curve_delayed.csv', task_to_analyze)), show_col_types = FALSE) %>% mutate(conf_type = 'delayed'))
+
+# Filter out experiment
+if (exp_data == 'exp1') {
+  dat <- dat %>% 
+    filter(confidence_type == 'concurrent')
+} else if (exp_data == 'exp2') {
+  dat <- dat %>% 
+    filter(confidence_type == 'delayed')
+} 
+
+# remove participants with bad fits
+bad_fits <- read_csv(here('data/processed/bad_fits.csv'), show_col_types = FALSE)
+dat <- dat %>% anti_join(bad_fits %>% select(-c(data, type)), by = join_by(confidence_type, participant, bias_source))
 
 # Renumber participants. In both experiments participant numbers are counted from 0 so there will be overlapping in numbers.
-dat <- dat %>% 
-  group_by(conf_type, participant) %>% 
+dat <- dat %>%
+  group_by(conf_type, participant) %>%
   mutate(participant = sprintf('S%04d', (cur_group_id())))
     
-
 # get reproduction data
 dat <-
-  dat %>% 
-  mutate(dev= abs(target_length - 400)) %>% 
-  group_by(participant, bias_source, bias_direction) %>% 
-  filter(dev == min(dev)) %>% 
-  reframe(value = mean(value))
+  get_ref_rep(dat) %>% 
+  select(-data) %>% 
+  rename(value=target_length) %>% 
+  ungroup()
 
 # Create condition code
 dat <- 
@@ -80,20 +94,11 @@ dat %>%
 
 ```
 
-## Function
 
 ```{r}
-source('functions_ordinal_modeling.R')
-
-```
-
-
-
-```{r}
-
-contrast_value_long <- .5
-contrast_value_short <- -.5
-
+# Contrast direction
+contrast_value_long <- -.5
+contrast_value_short <- .5
 ```
 
 ## Bayes sampling
@@ -122,7 +127,7 @@ This chunk creates a contrast matrix to indicate to which subject each observati
 include_id_contrast = TRUE
 
 # Get id contrast matrix
-id_contrast <- get_id_contrast(dat %>% select(participant) %>% rename(id=participant))
+id_contrast <- get_id_contrast(id_col = dat %>% select(participant) %>% rename(id=participant))
 
 # Display matrix
 image(t(id_contrast))
@@ -764,7 +769,6 @@ sampled_means_j <-
   set_names(pm.effest.j[c('mu', beta_names)], c('mu', 'ml_int', 'br_int', 'pa_bd'))
 ```
 
-
 ```{r}
 
 c(
@@ -916,333 +920,7 @@ c(
 
 ```
 
-
-## Priors
-
-```{r}
-# Parameters for prior sampling
-R <- 1000000
-mu.theta.sd <- 1
-# Prior sample
-ml <- rnorm(R, 0, mu.theta.sd)
-br <- rnorm(R, 0, mu.theta.sd)
-po <- rnorm(R, 0, mu.theta.sd)
-
-```
-
-## Posteriors
-
-```{r}
-
-# Number of participant contrast columns
-add_to_beta_index <- ncol(id_contrast)
-
-### CONTRAST A -----------------------------------------------------------------
-
-# There is an effect in all conditions
-make_condition_contrast_image(X_a)
-
-# Column names of beta columns of bias direction effects
-ml_bd <- paste0('beta_', 2 + add_to_beta_index)
-br_bd <- paste0('beta_', 4 + add_to_beta_index)
-po_bd <- paste0('beta_', 5 + add_to_beta_index)
-
-# 3 bias direction effect sizes, one for each bias source
-ba_bigger_ml <- samp_out_a[, br_bd] > samp_out_a[, ml_bd]
-pa_bigger_ml <- samp_out_a[, po_bd] > samp_out_a[, ml_bd]
-pa_bigger_ba <- samp_out_a[, po_bd] > samp_out_a[, br_bd]
-
-# all bias direction effects have to be positive. this is added to all posteriors
-all_positive_effect <- samp_out_a[, br_bd] > 0 & samp_out_a[, po_bd] > 0 & samp_out_a[, ml_bd] > 0
-# prior for all effects being positive
-all_positive_prior <- ml > 0 & po > 0 & br > 0
-  
-# Priors H-I --------------------------------------------------------
-prior_prob_HH <- mean(br > ml & ml < po & br < po & all_positive_prior)
-prior_prob_II <- mean(br > ml & ml < po & br > po & all_positive_prior)
-
-# Model HH (BR > ML < PO) & PO > BR
-post_prob_conHH <- 
-  mean(
-    ba_bigger_ml & pa_bigger_ml & pa_bigger_ba & all_positive_effect
-  )
-# Model II (BR > ML < PO) & PO < BR
-post_prob_conII <- 
-  mean(
-    ba_bigger_ml & pa_bigger_ml & !pa_bigger_ba & all_positive_effect
-  )
-
-# Priors J-K -------------------------------------------------------
-
-# Models based on model B
-prior_prob_JJ <- mean(br < ml & ml > po & br < po & all_positive_prior)
-prior_prob_KK <- mean(br < ml & ml > po & br > po & all_positive_prior)
-
-# Model MM (BR > ML < PO) & PO > BR
-post_prob_conJJ <- 
-  mean(
-    !ba_bigger_ml & !pa_bigger_ml & pa_bigger_ba & all_positive_effect
-  )
-# Model NN (BR > ML < PO) & PO < BR
-post_prob_conKK <- 
-  mean(
-    !ba_bigger_ml & !pa_bigger_ml & !pa_bigger_ba & all_positive_effect
-  )
-
-# Priors L ---------------------------------------------------
-
-# Models based on model C
-prior_prob_LL <- mean(br < ml & ml < po & br < po & all_positive_prior)
-# prior_prob_MM <- mean(br < ml & ml < po & br > po) This constraint is not possible.
-
-# Model OO (BR > ML < PO) & PO > BR
-post_prob_conLL <- 
-  mean(
-    !ba_bigger_ml & pa_bigger_ml & pa_bigger_ba & all_positive_effect
-  )
-
-# # Model PP (BR > ML < PO) & PO < BR -> THIS MODEL IS NOT POSSIBLE
-# post_prob_conMM <- 
-#   mean(
-#     !ba_bigger_ml & pa_bigger_ml & !pa_bigger_ba
-#   )
-
-# Priors M --------------------------------------------------------
-
-# Models based on model C
-# prior_prob_QQ <- mean(br > ml & ml > po & br < po) This constraint is not possible.
-prior_prob_MM <- mean(br > ml & ml > po & br > po & all_positive_prior)
-
-# # Model QQ (BR > ML < PO) & PO > BR -> THIS MODEL IS NOT POSSIBLE
-# post_prob_conQQ <- 
-#   mean(
-#     ba_bigger_ml & !pa_bigger_ml & pa_bigger_ba
-#   )
-# Model RR (BR > ML < PO) & PO < BR
-post_prob_conMM <- 
-  mean(
-    ba_bigger_ml & !pa_bigger_ml & !pa_bigger_ba & all_positive_effect
-  )
-
-```
-
-```{r}
-
-# Priors
-prior_prob_BB <- mean(ml < po & br < po & all_positive_prior)
-prior_prob_CC <- mean(ml > po & br > po & all_positive_prior)
-
-### CONTRAST C -----------------------------------------------------------------
-make_condition_contrast_image(X_c)
-
-# (ml == br) </> po
-mlbr_bd <- paste0('beta_', 3 + add_to_beta_index)
-po_bd <- paste0('beta_', 4 + add_to_beta_index)
-
-#  ML=BR < PO
-pa_bigger_mlbr <- samp_out_c[,mlbr_bd] < samp_out_c[,po_bd] 
-post_prob_conBB <-  
-  mean(
-    pa_bigger_mlbr & samp_out_c[,mlbr_bd] > 0 & samp_out_c[,po_bd] > 0
-  )
-
-#  ML=BR > PO
-mlbr_bigger_pa <- samp_out_c[,mlbr_bd] > samp_out_c[,po_bd]
-post_prob_conCC <-  
-  mean(
-    mlbr_bigger_pa & samp_out_c[,mlbr_bd] > 0 & samp_out_c[,po_bd] > 0
-  )
-
-```
-
-```{r}
-
-# Priors
-prior_prob_DD <- mean(ml < br & po < br & all_positive_prior)
-prior_prob_EE <- mean(ml > br & po > br & all_positive_prior)
-
-### CONTRAST D -----------------------------------------------------------------
-
-make_condition_contrast_image(X_d)
-
-# (ml == po) </> br
-mlpo_bd <- paste0('beta_', 2 + add_to_beta_index)
-br_bd <- paste0('beta_', 4 + add_to_beta_index)
-
-#  ML=PO < BR
-ba_bigger_mlpa <- samp_out_d[, mlpo_bd] < samp_out_d[,br_bd]
-post_prob_conDD <-  
-  mean(
-    ba_bigger_mlpa & samp_out_d[, mlpo_bd] > 0 & samp_out_d[,br_bd] > 0
-  )
-
-#  ML=PO > BR
-mlpa_bigger_ba <- samp_out_d[, mlpo_bd] > samp_out_d[,br_bd]
-post_prob_conEE <-  
-  mean(
-    mlpa_bigger_ba & samp_out_d[, mlpo_bd] > 0 & samp_out_d[,br_bd] > 0
-  )
-
-```
-
-```{r}
-
-# Priors
-prior_prob_C <- mean(ml > 0)
-
-### CONTRAST E -----------------------------------------------------------------
-
-make_condition_contrast_image(X_e)
-
-# ml > 0 
-ml_bd <- paste0('beta_', 2 + add_to_beta_index)
-
-#  ml positive effect
-post_prob_conC <-  
-  mean(
-    samp_out_e[, ml_bd] > 0 
-  )
-
-```
-
-```{r}
-
-# Priors
-prior_prob_G <- mean(ml > 0 & br > 0)
-
-### CONTRAST G -----------------------------------------------------------------
-
-make_condition_contrast_image(X_g)
-
-# ml & br > 0 
-ml_bd <- paste0('beta_', 2 + add_to_beta_index)
-br_bd <- paste0('beta_', 4 + add_to_beta_index)
-
-#  ml positive effect
-post_prob_conG <-  
-  mean(
-    samp_out_g[, ml_bd] > 0 & samp_out_g[, br_bd] > 0 
-  )
-
-```
-
-```{r}
-
-# Priors
-prior_prob_F <- mean(po > 0 & ml > 0)
-
-### CONTRAST H -----------------------------------------------------------------
-
-make_condition_contrast_image(X_h)
-
-# ml & po > 0 
-ml_bd <- paste0('beta_', 2 + add_to_beta_index)
-po_bd <- paste0('beta_', 4 + add_to_beta_index)
-
-#  ml positive effect
-post_prob_conF <-  
-  mean(
-    samp_out_h[, ml_bd] > 0 & samp_out_h[, po_bd] > 0 
-  )
-
-```
-
-```{r}
-
-# model E: effect in Payoff and Baserate, no effect in Muller-Lyer
-
-# Priors
-prior_prob_E <- mean(po > 0 & br > 0)
-
-### CONTRAST I -----------------------------------------------------------------
-
-make_condition_contrast_image(X_i)
-
-# br & po > 0 
-br_bd <- paste0('beta_', 3 + add_to_beta_index)
-po_bd <- paste0('beta_', 4 + add_to_beta_index)
-
-#  ml positive effect
-post_prob_conE <-  
-  mean(
-    samp_out_i[, br_bd] > 0 & samp_out_i[, po_bd] > 0 
-  )
-
-```
-
-```{r}
-
-# Priors
-prior_prob_B <- mean(po > 0)
-
-### CONTRAST J -----------------------------------------------------------------
-
-make_condition_contrast_image(X_j)
-
-# po > 0 
-po_bd <- paste0('beta_', 3 + add_to_beta_index)
-
-post_prob_conB <-  
-  mean(
-    samp_out_j[, po_bd] > 0 
-  )
-
-```
-
-```{r}
-
-# Priors
-prior_prob_D <- mean(br > 0)
-
-### CONTRAST K -----------------------------------------------------------------
-
-make_condition_contrast_image(X_k)
-
-# br > 0 
-br_bd <- paste0('beta_', 3 + add_to_beta_index)
-
-post_prob_conD <-  
-  mean(
-    samp_out_k[, br_bd] > 0 
-  )
-
-```
-
-```{r}
-
-# Priors
-prior_prob_FF <- mean(br < ml &po < ml & br > 0 & ml > 0 & po > 0)
-prior_prob_GG <- mean(br > ml &po > ml & br > 0 & ml > 0 & po > 0)
-
-
-### CONTRAST L -----------------------------------------------------------------
-
-make_condition_contrast_image(X_l)
-
-# (br == po) </> ml
-ml_bd <- paste0('beta_', 2 + add_to_beta_index)
-brpo_bd <- paste0('beta_', 4 + add_to_beta_index)
-
-
-#  BR=PO < ML
-ml_bigger_bapa <- samp_out_l[, brpo_bd] < samp_out_l[,ml_bd]
-
-post_prob_conFF <-  
-  mean(
-    ml_bigger_bapa & samp_out_l[, brpo_bd] > 0 & samp_out_l[,ml_bd] > 0
-  )
-
-#  BR=PO > ML
-bapa_bigger_ml <- samp_out_l[, brpo_bd] > samp_out_l[,ml_bd]
-post_prob_conGG <-  
-  mean(
-    bapa_bigger_ml & samp_out_l[, brpo_bd] > 0 & samp_out_l[,ml_bd] > 0
-  )
-
-```
-
 ### Calculate ordinal BF
-
 
 ```{r}
 
@@ -1252,47 +930,18 @@ bf_uN <- bf_out_f$bf
 # model A: effect on all conditions, no constrained across them
 bf_A <- bf_out_a$bf
 # model B: effect only in Payoff 
-bf_B <- log(post_prob_conB/ prior_prob_B) + bf_out_j$bf 
+bf_B <- bf_out_j$bf 
 # model C: effect only in Muller-Lyer
-bf_C <- log(post_prob_conC/ prior_prob_C) + bf_out_e$bf
+bf_C <- bf_out_e$bf
 # model D: effect only in Base rate
-bf_D <- log(post_prob_conD/ prior_prob_D) + bf_out_k$bf           
+bf_D <- bf_out_k$bf           
 # model E: effect in Payoff and Baserate, no effect in Muller-Lyer
-bf_E <- log(post_prob_conE/ prior_prob_E) + bf_out_i$bf           
+bf_E <- bf_out_i$bf           
 # model F: effect in Payoff and Muller-Lyer, no effect in Baserate
-bf_F <- log(post_prob_conF/ prior_prob_F) + bf_out_h$bf           
+bf_F <- bf_out_h$bf           
 # model G: effect in Muller-Lyer and Baserate, no effect in Payoff
-bf_G <- log(post_prob_conG/ prior_prob_G) + bf_out_g$bf           
+bf_G <- bf_out_g$bf           
 
-
-# More-constrained models ---------------------------------
-
-# model AA: BR = ML = PO
-bf_AA <- bf_out_b$bf
-# model BB: (ML = BR) < PO
-bf_BB <- log(post_prob_conBB / prior_prob_BB) + bf_out_c$bf
-# model CC: (ML = BR) > PO
-bf_CC <- log(post_prob_conCC / prior_prob_CC) + bf_out_c$bf
-# model DD: (ML = PO) < BR
-bf_DD <- log(post_prob_conDD / prior_prob_DD) + bf_out_d$bf
-# model EE: (ML = PO) > BR
-bf_EE <- log(post_prob_conEE / prior_prob_EE) + bf_out_d$bf
-# model FF: (BR = PO) < ML
-bf_FF <- log(post_prob_conFF / prior_prob_FF) + bf_out_l$bf
-# model GG: (BR = PO) > ML
-bf_GG <- log(post_prob_conGG / prior_prob_GG) + bf_out_l$bf
-# model HH (BR > ML < PO) & BR < PO
-bf_HH <- log(post_prob_conHH / prior_prob_HH) + bf_out_a$bf
-# model II (BR > ML < PO) & BR > PO
-bf_II <- log(post_prob_conII / prior_prob_II) + bf_out_a$bf
-# model JJ: (BR < ML > PO) & BR < PO
-bf_JJ <- log(post_prob_conJJ / prior_prob_JJ) + bf_out_a$bf
-# model KK: (BR < ML > PO) & BR > PO
-bf_KK <- log(post_prob_conKK / prior_prob_KK) + bf_out_a$bf
-# model LL: (BR < ML < PO) & PO > BR
-bf_LL <- log(post_prob_conLL / prior_prob_LL) + bf_out_a$bf
-# model MM: (BR > ML > PO) & PO < BR
-bf_MM <- log(post_prob_conMM / prior_prob_MM) + bf_out_a$bf
 ```
 
 ## Make table with bf values
@@ -1308,27 +957,27 @@ bfs <-
     'e', bf_E, 'BR & PO', 
     'f', bf_F, 'ML & PO',
     'g', bf_G, 'BR & ML',
-    # data-driven models
-    'AA', bf_AA, 'BR = ML = PO',
-    'BB', bf_BB, '(BR=ML) < PO', 
-    'CC', bf_CC, '(BR=ML) > PO', 
-    'DD', bf_DD, '(ML=PO) < BR', 
-    'EE', bf_EE, '(ML=PO) > BR',
-    'FF', bf_FF, '(BR=PO) < ML',
-    'GG', bf_GG, '(BR=PO) > ML',
-    'HH', bf_HH, 'BR > ML < PO & BR < PO',
-    'II', bf_II, 'BR > ML < PO & BR > PO',
-    'JJ', bf_JJ, 'BR < ML > PO & BR < PO',
-    'KK', bf_KK, 'BR < ML > PO & BR > PO',
-    'LL', bf_LL, 'BR < ML < PO & BR < PO',
-    'MM', bf_MM, 'BR > ML > PO & BR > PO',
-    
     'UN', bf_uN, 'BR & ML & PO (no effect in all manipulations)'
   )
 
-
 bfs %>% 
-  write_csv(here(sprintf('data/ordinal_modeling/ord_models_%s.csv', task_to_analyze)))
+  write_csv(here(sprintf('data/ordinal_modeling/ord_models_%s_%s.csv', task_to_analyze, exp_data)))
 
 ```
 
+## Print best models for quick check
+
+```{r}
+bfs_based <- 
+  bfs %>% 
+  filter(nchar(model) == 1) %>% 
+  mutate(baseline = bfs %>% filter(model == 'UN') %>% pull(bf),
+         bf_over_baseline = bf-baseline) %>% 
+  arrange(desc(bf_over_baseline)) %>% 
+  filter(bf_over_baseline > 0)
+
+bfs_based %>% 
+  mutate(bf_over_rest = exp(max(bf_over_baseline) - bf_over_baseline)) %>% 
+  filter(bf_over_rest < 100)
+
+```
