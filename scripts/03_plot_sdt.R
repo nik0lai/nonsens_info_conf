@@ -7,7 +7,7 @@ source('scripts/funcs.R')
 # Data --------------------------------------------------------------------
 
 dat <- dir('data/processed/', pattern = 'filtered', full.names = TRUE) %>% 
-  map(., ~read_csv(.x)) %>% 
+  map(., ~read_csv(.x, show_col_types = FALSE)) %>% 
   bind_rows() %>% factor_bias_source(.)
 
 # Get SDT measures --------------------------------------------------------
@@ -39,7 +39,7 @@ rep_data <-
   mutate(answer = as.integer(answer),
          reproduction_error = answer - target_length) %>% 
   group_by(confidence_type, participant, bias_source, bias_direction) %>% 
-  summarise(reproduction_error = mean(reproduction_error))
+  reframe(reproduction_error = mean(reproduction_error))
 
 # Create condition column -------------------------------------------------
 
@@ -61,7 +61,7 @@ rep_data <- rep_data %>%
 # Plot Bias ---------------------------------------------------------------
 
 bias_plot_bf_d_y_position <- 1.5
-bias_plot_y_limits <- c(-1.5, 2.2)
+bias_plot_y_limits <- c(-1.6, 2.2)
 
 ## Concurrent ------
 
@@ -87,18 +87,19 @@ data_to_plot <- sdt_data %>%
   rename(value = ccrit) %>% 
   ungroup()
 
-p_bias_delayed <- basic_point_plot(data=data_to_plot, bf_d_y_position=bias_plot_bf_d_y_position) +
+p_bias_delayed <- 
+  basic_point_plot(data=data_to_plot, bf_d_y_position=bias_plot_bf_d_y_position) +
   ggtitle('Categorization bias') +
   ylab('SDT criterion') +
   ylim(bias_plot_y_limits)
 
 p_bias_delayed
-ggsave('plots/delayed_sdt_criterion.png', width = 6, height = 4, scale = .75, device=png)
+ggsave('plots/delayed_sdt_criterion.png', width = 6, height = 4, scale = .75, device=png, dpi = 600)
 
 # Plot Reproduction ---------------------------------------------------------------
 
 reproduction_plot_bf_d_y_position <- 65
-reproduction_plot_y_limits <- c(-80, 82)
+reproduction_plot_y_limits <- c(-81, 82)
 
 ## Concurrent ------
 
@@ -115,7 +116,7 @@ p_reproduction_concurrent <-
   ylim(reproduction_plot_y_limits)
 
 p_reproduction_concurrent
-ggsave('plots/concurrent_reproduction_error.png', width = 6, height = 4, scale = .75, device=png)
+ggsave('plots/concurrent_reproduction_error.png', width = 6, height = 4, scale = .75, device=png, dpi = 600)
 
 ## Delayed ------
 
@@ -132,7 +133,7 @@ p_reproduction_delayed <-
   ylim(reproduction_plot_y_limits)
 
 p_reproduction_delayed
-ggsave('plots/delayed_reproduction_error.png', width = 6, height = 4, scale = .75, device=png)
+ggsave('plots/delayed_reproduction_error.png', width = 6, height = 4, scale = .75, device=png, dpi = 600)
 
 # Combine reproduction plot -----------------------------------------------
 
@@ -148,7 +149,7 @@ p_reproduction_combined <- basic_point_plot(data=data_to_plot, bf_d_y_position=r
   ylim(reproduction_plot_y_limits)
 
 p_reproduction_combined
-ggsave('plots/combined_reproduction_error.png',width = 7, height = 4, dpi = 300, scale=.68, device=png)
+ggsave('plots/combined_reproduction_error.png',width = 7, height = 4, dpi = 600, scale=.68, device=png)
 
 # Plot Sensitivity ---------------------------------------------------------------
 
@@ -169,7 +170,7 @@ p_sensitivity_concurrent <- basic_point_plot(data=data_to_plot, bf_d_y_position=
   ylim(sensitivity_plot_y_limits)
 
 p_sensitivity_concurrent
-ggsave('plots/concurrent_sdt_sensitivity.png', width = 6, height = 4, scale = .75, device=png)
+ggsave('plots/concurrent_sdt_sensitivity.png', width = 6, height = 4, scale = .75, device=png, dpi = 600)
 
 ## Delayed ------
 
@@ -185,12 +186,10 @@ p_sensitivity_delayed <- basic_point_plot(data=data_to_plot, bf_d_y_position=sen
   ylim(sensitivity_plot_y_limits)
 
 p_sensitivity_delayed
-ggsave('plots/delayed_sdt_sensitivity.png', width = 6, height = 4, scale = .75, device=png)
-
+ggsave('plots/delayed_sdt_sensitivity.png', width = 6, height = 4, scale = .75, device=png, dpi = 600)
 
 # Combine sensitivity plots -----------------------------------------------
 
 p_sensitivity_concurrent / p_sensitivity_delayed
-
-ggsave('plots/combined_sdt_sensitivity.png', width = 10, height = 10, scale = .6, device=png)
+ggsave('plots/combined_sdt_sensitivity.png', width = 10, height = 10, scale = .6, device=png, dpi = 600)
 

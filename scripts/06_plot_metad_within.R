@@ -99,7 +99,7 @@ nested_cohend_data <-
   nest()
 
 # Generate prior distribution
-prior <- distribution_cauchy(n=1000, location = 0, scale=.707)
+prior <- distribution_cauchy(n=14000, location = 0, scale=.707)
 
 # Get BF using Savage-Dickey density ratio
 bf_data <-

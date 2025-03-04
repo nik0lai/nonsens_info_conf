@@ -6,12 +6,11 @@ p_load(magrittr, purrr, dplyr, here, readr, tidyr, ggplot2, patchwork)
 # Decision data ------
 # ***************************************************
 
-bfs_decision <- read_csv('data/ordinal_modeling/ord_models_decision.csv')
+bfs_decision <- read_csv('data/ordinal_modeling/ord_models_decision_both.csv', show_col_types = FALSE)
 
 # Compare all simple models against null
-bfs_decision_simple_models <- 
+bfs_decision_simple_models <-
   bfs_decision %>% 
-  filter(nchar(model) == 1 | model == 'UN') %>% 
   mutate(baseline = bfs_decision$bf[bfs_decision$model == 'UN']) %>% 
   mutate(bf_over_null_log = bf - baseline,
          bf_over_null_raw = exp(bf_over_null_log)) %>%
@@ -21,13 +20,24 @@ bfs_decision_simple_models <-
 bfs_decision_simple_models %>% 
   mutate(bf_over_null_raw = formatC(bf_over_null_raw, digits = 1, format = 'e'))
 
+# for reporting on paper 
+report_df <- bfs_decision_simple_models %>% 
+  mutate(bf_over_null_raw = formatC(bf_over_null_raw, digits = 1, format = 'e')) %>% 
+  mutate(bf_over_rest = exp(max(bf_over_null_log) - bf_over_null_log)) %>% 
+  mutate(bf_over_rest_format = formatC(bf_over_rest, digits = 1, format = 'e'))
+
+
+sprintf('######################\nbest model: %s (%s) %s\nsecond best: %s (%s)\nbf best over second-best %s\n######################', 
+        report_df$model[[1]], report_df$model_label[[1]], report_df$bf_over_null_raw[[1]], 
+        report_df$model[[2]], report_df$model_label[[2]], report_df$bf_over_rest_format[[2]]) %>% 
+  cat()
+
 ## Plot simple models ---------
 
 # Base plot
 p_bias <-
   bfs_decision_simple_models %>%
   mutate(model = toupper(model)) %>% 
-  # filter(nchar(model) == 1 | model %in% c('BM'), model != 'a') %>%
   mutate(model = recode(model, 'UN'='null'))  %>% 
   mutate(model = factor(model, levels = c('null', sort(LETTERS[1:13], decreasing = TRUE)))) %>%
   ggplot(., aes(y=model, x=bf_over_null_raw)) + 
@@ -37,15 +47,15 @@ p_bias <-
   ggtitle('Decision task') 
 
 # Best performing models annotation
-p_bias <- p_bias  +
-  annotate("text", x = Inf, y = -Inf, 
+p_bias <-
+  p_bias  +
+  annotate("text", x = Inf, y = -Inf,
            hjust = 1.2, vjust = -12.5,
            label = "Best performing models", size = 2.5) +
-  geom_segment(aes(x = 3e+52, xend = 6e+52, 
+  geom_segment(aes(x = 5e+51, xend = 1e+52,
                    y = 5, yend = 5),
                arrow = arrow(length = unit (0.3, "cm"))) +
   scale_x_continuous(breaks = scales::breaks_pretty(n = 4))
-
 
 # Save bf values relative to baseline and to best model
 bfs_decision_simple_models %>%
@@ -56,12 +66,11 @@ bfs_decision_simple_models %>%
 # Confidence data ------
 # ***************************************************
 
-bfs_confidence <- read_csv('data/ordinal_modeling/ord_models_confidence.csv')
+bfs_confidence <- read_csv('data/ordinal_modeling/ord_models_confidence_both.csv', show_col_types = FALSE)
 
 # Compare all simple models against null
 bfs_confidence_simple_models <- 
   bfs_confidence %>% 
-  filter(nchar(model) == 1 | model == 'UN') %>% 
   mutate(baseline = bfs_confidence$bf[bfs_confidence$model == 'UN']) %>% 
   mutate(bf_over_null_log = bf - baseline,
          bf_over_null_raw = exp(bf_over_null_log)) %>%
@@ -70,6 +79,17 @@ bfs_confidence_simple_models <-
 # simple arranged from more likely to least
 bfs_confidence_simple_models %>% 
   mutate(bf_over_null_raw = formatC(bf_over_null_raw, digits = 1, format = 'e'))
+
+# for reporting on paper 
+report_df <- bfs_confidence_simple_models %>% 
+  mutate(bf_over_null_raw = formatC(bf_over_null_raw, digits = 1, format = 'e')) %>% 
+  mutate(bf_over_rest = exp(max(bf_over_null_log) - bf_over_null_log)) %>% 
+  mutate(bf_over_rest_format = formatC(bf_over_rest, digits = 1, format = 'e'))
+
+sprintf('######################\nbest model: %s (%s) %s\nsecond best: %s (%s)\nbf best over second-best %s\n######################', 
+        report_df$model[[1]], report_df$model_label[[1]], report_df$bf_over_null_raw[[1]], 
+        report_df$model[[2]], report_df$model_label[[2]], report_df$bf_over_rest_format[[2]]) %>% 
+  cat()
 
 ## Plot simple models ---------
 
@@ -87,11 +107,12 @@ p_conf <-
   ggtitle('Confidence task') 
 
 # Best performing models annotation
-p_conf <- p_conf  +
-  annotate("text", x = Inf, y = -Inf, 
+p_conf <-
+  p_conf  +
+  annotate("text", x = Inf, y = -Inf,
            hjust = 1.2, vjust = -12.5,
            label = "Best performing models", size = 2.5) +
-  geom_segment(aes(x = 2e+18, xend = 4e+18, 
+  geom_segment(aes(x = 3e+11, xend = 6e+11,
                    y = 5, yend = 5),
                arrow = arrow(length = unit (0.3, "cm"))) +
   scale_x_continuous(breaks = scales::breaks_pretty(n = 4))
@@ -105,7 +126,7 @@ bfs_confidence_simple_models %>%
 # Reproduction data ------
 # ***************************************************
 
-bfs_reproduction <- read_csv('data/ordinal_modeling/ord_models_reproduction.csv')
+bfs_reproduction <- read_csv('data/ordinal_modeling/ord_models_reproduction_both.csv', show_col_types = FALSE)
 
 # Compare all simple models against null
 bfs_reproduction_simple_models <- 
@@ -119,6 +140,17 @@ bfs_reproduction_simple_models <-
 # simple arranged from more likely to least
 bfs_reproduction_simple_models %>% 
   mutate(bf_over_null_raw = formatC(bf_over_null_raw, digits = 1, format = 'e'))
+
+# for reporting on paper 
+report_df <- bfs_reproduction_simple_models %>% 
+  mutate(bf_over_null_raw = formatC(bf_over_null_raw, digits = 1, format = 'e')) %>% 
+  mutate(bf_over_rest = exp(max(bf_over_null_log) - bf_over_null_log)) %>% 
+  mutate(bf_over_rest_format = formatC(bf_over_rest, digits = 1, format = 'e'))
+
+sprintf('######################\nbest model: %s (%s) %s\nsecond best: %s (%s)\nbf best over second-best %s\n######################', 
+        report_df$model[[1]], report_df$model_label[[1]], report_df$bf_over_null_raw[[1]], 
+        report_df$model[[2]], report_df$model_label[[2]], report_df$bf_over_rest_format[[2]]) %>% 
+  cat()
 
 ## Plot simple models ---------
 
@@ -137,10 +169,10 @@ p_rep <-
 
 # Best performing models annotation
 p_rep <- p_rep  +
-  annotate("text", x = Inf, y = -Inf, 
+  annotate("text", x = Inf, y = -Inf,
            hjust = 1.2, vjust = -12.5,
            label = "Best performing models", size = 2.5) +
-  geom_segment(aes(x = 2e+32, xend = 4.5e+32, 
+  geom_segment(aes(x = 1e+18, xend = 2e+18,
                    y = 5, yend = 5),
                arrow = arrow(length = unit (0.3, "cm"))) +
   scale_x_continuous(breaks = scales::breaks_pretty(n = 3))
@@ -151,5 +183,5 @@ bfs_reproduction_simple_models %>%
   write_csv('data/ordinal_modeling/bf_reproduction.csv')
 
 (p_bias + theme(axis.text.x = element_text(size=7))) + (p_rep + theme(axis.text.x = element_text(size=7))) + (p_conf + theme(axis.text.x = element_text(size=7)))
-ggsave('plots/ord_models.png', width = 10, height = 3.5, scale = .8, dpi=1200)
+ggsave('plots/ord_models.png', width = 10, height = 3.5, scale = .8, dpi=1200, device=png)
 

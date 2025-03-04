@@ -7,7 +7,7 @@ source('scripts/funcs.R')
 
 # Data --------------------------------------------------------------------
 
-# Combine both datasets because same filtering is done on both
+# Combine both data sets because same filtering is done on both
 dat <- bind_rows(read_csv('data/raw_concurrent.csv', col_types = cols()), 
                  read_csv('data/raw_delayed.csv', col_types = cols()))
 
@@ -46,7 +46,8 @@ dat %>%
 dat %>% 
   group_by(confidence_type, participant, bias_source) %>% 
   summarise(count = n(), .groups = 'drop') %>% 
-  select(bias_source, count)
+  select(bias_source, count) %>% 
+  distinct()
 
 # Get SDT data ------------------------------------------------------------
 
@@ -68,7 +69,6 @@ sdt_data <-
   filter(key %in% c('d', 'ccrit')) %>% 
   pivot_wider(names_from = key, values_from = value) %>% 
   ungroup()
-
 
 # Filtering ---------------------------------------------------------------
 
@@ -118,27 +118,6 @@ d_outliers <-
   unnest(outliers) %>% 
   ungroup()
 
-## c outliers --------------
-
-# Here there are no c outliers so no participant is removed
-
-c_data <-
-  sdt_data %>% 
-  select(confidence_type, participant, bias_source, bias_direction, ccrit) %>% 
-  distinct() %>% 
-  rename(value = ccrit) %>% 
-  ungroup() %>% 
-  group_by(confidence_type) %>% 
-  nest()
-
-# Get criterion outliers
-c_outliers <- 
-  c_data %>% 
-  mutate(outliers = map(data, ~outlier_filtering(.x, sd_threshold))) %>% 
-  select(-data) %>% 
-  unnest(outliers) %>% 
-  ungroup()
-
 ## reproduction outliers --------------
 
 rep_data <-
@@ -168,7 +147,6 @@ dat <-
 
 bind_rows(low_d_subs,
           d_outliers,
-          c_outliers,
           rep_outliers)
 
 # Count filtered subjects -------------------------------------------------

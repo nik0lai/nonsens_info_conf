@@ -1,6 +1,6 @@
 # Packages
 if (!require('pacman', quietly = TRUE)) install.packages('pacman'); library('pacman', quietly = TRUE)
-p_load(readr, dplyr, tidyr, purrr, BayesFactor, bayestestR, ggplot2, stringr)
+p_load(readr, dplyr, tidyr, purrr, BayesFactor, bayestestR, ggplot2, stringr, broom)
 
 source('scripts/funcs.R')
 
@@ -24,6 +24,26 @@ decision_glm_data <-
   group_by(confidence_type, participant, bias_source, bias_direction) %>% 
   nest() %>%
   mutate(fit = map(data,  ~glm(answer ~ target_length, data = .x, family = 'binomial')))
+
+# Check for non-significant coefficient
+decision_nonsign <- 
+  decision_glm_data %>% 
+  mutate(summ = map(fit, tidy)) %>% 
+  unnest(summ) %>% 
+  filter(term == 'target_length' & p.value > .5) %>% 
+  ungroup() %>% 
+  select(confidence_type, participant, bias_source) %>% 
+  distinct()
+
+# Check direction of curve
+decision_flip <- 
+  decision_glm_data %>% 
+  mutate(summ = map(fit, tidy)) %>% 
+  unnest(summ) %>% 
+  filter(term == 'target_length' & estimate < 0) %>% 
+  ungroup() %>% 
+  select(confidence_type, participant, bias_source) %>% 
+  distinct()
 
 ## Predict full curve ----
 
@@ -53,6 +73,26 @@ confidence_lm_data <-
   nest() %>%
   mutate(fit = map(data,  ~lm(confidence ~ poly(x = target_length, degree = 2, raw =TRUE), data = .x)))
 
+# Check for non-significant coefficient
+confidence_nonsign <- 
+  confidence_lm_data %>% 
+  mutate(summ = map(fit, tidy)) %>% 
+  unnest(summ) %>% 
+  filter(term == 'poly(x = target_length, degree = 2, raw = TRUE)2' & p.value > .5) %>% 
+  ungroup() %>% 
+  select(confidence_type, participant, bias_source) %>% 
+  distinct()
+
+# Check direction of curve
+confidence_flip <- 
+  confidence_lm_data %>% 
+  mutate(summ = map(fit, tidy)) %>% 
+  unnest(summ) %>% 
+  filter(term == 'poly(x = target_length, degree = 2, raw = TRUE)2' & estimate < 0) %>% 
+  ungroup() %>% 
+  select(confidence_type, participant, bias_source) %>% 
+  distinct()
+
 ## Predict full curve ----
 
 confidence_predicted_curve <- predict_full_fit(fits = confidence_lm_data %>% select(confidence_type, participant, bias_source, bias_direction, data, fit))
@@ -64,7 +104,7 @@ unique(confidence_predicted_curve$confidence_type) %>%
          select(-c(data,fit)) %>%
          write_csv(., sprintf('data/processed/confidence_predicted_curve_%s.csv', .x))
   )
-       
+
 # Reproduction data -------------------------------------------------------
 
 # Separate reproduction data
@@ -81,6 +121,26 @@ reproduction_lm_data <-
   nest() %>%
   mutate(fit = map(data,  ~lm(answer ~ target_length, data = .x)))
 
+# Check for non-significant coefficient
+reproduction_nonsign <- 
+  reproduction_lm_data %>% 
+  mutate(summ = map(fit, tidy)) %>% 
+  unnest(summ) %>% 
+  filter(term == 'target_length' & p.value > .5) %>% 
+  ungroup() %>% 
+  select(confidence_type, participant, bias_source) %>% 
+  distinct()
+
+# Check direction of curve
+reproduction_flip <- 
+  reproduction_lm_data %>% 
+  mutate(summ = map(fit, tidy)) %>% 
+  unnest(summ) %>% 
+  filter(term == 'target_length' & estimate < 0) %>% 
+  ungroup() %>% 
+  select(confidence_type, participant, bias_source) %>% 
+  distinct()
+
 ## Predict full curve ----
 
 reproduction_predicted_curve <- predict_full_fit(fits = reproduction_lm_data %>% select(confidence_type, participant, bias_source, bias_direction, data, fit))
@@ -92,3 +152,34 @@ unique(reproduction_predicted_curve$confidence_type) %>%
          select(-c(data,fit)) %>%
          write_csv(., sprintf('data/processed/reproduction_predicted_curve_%s.csv', .x))
   )
+
+# Combine bad subjects ----------------------------------------------------
+
+bad_fits <- 
+  bind_rows(
+    decision_nonsign %>% mutate(data='decision', type = 'non-sign'),
+    decision_flip %>% mutate(data='decision', type = 'flip_sign'),
+    confidence_nonsign %>% mutate(data='confidence', type = 'non-sign'),
+    confidence_flip %>% mutate(data='confidence', type = 'flip_sign'),
+    reproduction_nonsign %>% mutate(data='reproduction', type = 'non-sign'),
+    reproduction_flip %>% mutate(data='reproduction', type = 'flip_sign')
+  ) 
+
+# inspect bad fit subjects
+bad_fits %>% 
+  mutate(check=TRUE) %>% 
+  pivot_wider(names_from = type, values_from = check) %>% 
+  unnest() %>% 
+  arrange(confidence_type, bias_source, participant) %>% 
+  print(n=100)
+
+# count bad fit subjects by condition
+bad_fits %>%
+  select(-c(data, type)) %>% 
+  distinct() %>% 
+  group_by(confidence_type, bias_source) %>% 
+  reframe(count = n())
+
+# save list of bad subjects to remove later
+write_csv(bad_fits, 'data/processed/bad_fits.csv')
+

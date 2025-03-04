@@ -46,7 +46,7 @@ get_metad <- function(confidence_type, bias_source, data) {
 
 # Data --------------------------------------------------------------------
 
-dat <- read_csv('data/processed/all_data_metad.csv')
+dat <- read_csv('data/processed/all_data_metad.csv', show_col_types = FALSE)
 
 # Format data
 
