@@ -67,8 +67,11 @@ outlier_filtering <- function(data, sd_threshold) {
 
 predict_full_fit <- function(fits) {
   
-  # target length values to predict
-  possible_target_lengths <- seq(365, 435, .1)
+  # target length values to predict. range is wider than
+  # tested stimuli `seq(365, 435, .1)` to allow for the fits
+  # to go through the point we test (pse, pmu, reference-reproduction)
+  # this range was determined manually to prevent NAs
+  possible_target_lengths <- seq(320, 510, .1)
   
   # predict values using fit
   fits %>% 
@@ -191,16 +194,16 @@ basic_curve_plot <- function(curve_data, empirical_data) {
   line_summary <- 
     curve_data %>% 
     group_by(bias_source, bias_direction, target_length) %>% 
-    summarise(value = mean(value)) %>% 
+    reframe(value = mean(value)) %>% 
     ungroup()
   
   points_summary <-
     empirical_data %>% 
     mutate(answer = as.integer(answer)) %>% 
     group_by(participant, bias_source, bias_direction, target_length) %>% 
-    summarise(answer = mean(answer)) %>% 
+    reframe(answer = mean(answer)) %>% 
     group_by(bias_source, bias_direction, target_length) %>% 
-    summarise(se = sqrt(var(answer)/length(answer)), 
+    reframe(se = sqrt(var(answer)/length(answer)), 
               answer = mean(answer))
   
   # Plot curve fitted values============================================
@@ -217,7 +220,7 @@ basic_curve_plot <- function(curve_data, empirical_data) {
                   group=bias_direction, 
                   linetype=bias_direction,
                   color=interaction(bias_source, bias_direction ,sep = '_')), 
-              size=.6,
+              linewidth=.6,
               show.legend = TRUE) +
     scale_color_manual(values = get_condition_colors()) 
   
@@ -247,9 +250,9 @@ basic_curve_plot <- function(curve_data, empirical_data) {
 get_subject_count <- function(data) {
   data %>%
     group_by(participant, bias_source) %>% 
-    summarise(count = n()) %>% 
+    reframe(count = n()) %>% 
     group_by(bias_source) %>% 
-    summarise(n = n())
+    reframe(n = n())
 }
 
 get_subject_count_labels <- function(data, inverted=FALSE) {
@@ -286,7 +289,7 @@ get_pse_summary <- function(pse_data) {
   pse_data %>% 
     group_by(bias_source, bias_direction) %>% 
     filter(!is.na(target_length)) %>% 
-    summarise(threshold = mean(target_length),
+    reframe(threshold = mean(target_length),
               sd = sd(target_length),
               se = sd/sqrt(n()))
 }
@@ -324,7 +327,7 @@ add_pse_to_plot <- function(base_plot, pse_data, pse_position, reproduction_plot
                  inherit.aes = FALSE, show.legend = FALSE, size=1) +
       geom_errorbarh(data=pse_data, aes(xmax=threshold+se, xmin=threshold-se, y=y_pos_pse_estimate, 
                                         color=interaction(bias_source, bias_direction, sep = '_')), 
-                     height=6, size=1, inherit.aes = FALSE, show.legend = FALSE) 
+                     height=6, linewidth=1, inherit.aes = FALSE, show.legend = FALSE) 
     
   } else {
     base_plot +
@@ -435,7 +438,7 @@ get_lowest_conf <- function(data) {
     group_by(confidence_type, participant, bias_source, bias_direction) %>% 
     filter(value == min(value)) %>% 
     group_by(confidence_type, participant, bias_source, bias_direction, value) %>% 
-    summarise(target_length = mean(target_length))
+    reframe(target_length = mean(target_length))
   
 }
 
@@ -454,7 +457,7 @@ basic_point_plot <- function(data, bf_d_y_position, one_tail=TRUE) {
     select(participant, bias_source, bias_direction) %>% 
     distinct() %>% 
     group_by(bias_source, bias_direction) %>% 
-    summarise(count = n()) %>% 
+    reframe(count = n()) %>% 
     full_join(enframe(label_bias_source), by = c('bias_source' = 'name')) %>% 
     mutate(label = paste0(value, ' (N=', count, ')')) %>% 
     select(bias_source, label) %>% 
@@ -480,7 +483,7 @@ basic_point_plot <- function(data, bf_d_y_position, one_tail=TRUE) {
     stat_summary(fun=mean,
                  fun.max = function(x) mean(x) + sd(x)/sqrt(length(x)),
                  fun.min = function(x) mean(x) - sd(x)/sqrt(length(x)),
-                 color='black', geom='errorbar', width=.2, size=.5)
+                 color='black', geom='errorbar', width=.2, linewidth=.5)
   
   p <- p +
     geom_text(data=bf_d, 
