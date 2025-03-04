@@ -1,0 +1,28 @@
+model,bf,model_label
+AA,-Inf,ml+ & br+ & po+
+AB,-Inf,ml+ & br+ & po-
+AC,-Inf,ml+ & br- & po+
+AD,28.75206324294632,ml+ & br- & po-
+AE,-Inf,ml- & br+ & po+
+AF,-Inf,ml- & br+ & po-
+AG,-Inf,ml- & br- & po+
+AH,22.28747493925636,ml- & br- & po-
+EA,11.921767791234473,ml+ & br= & po=
+EB,6.509898550002321,ml- & br= & po=
+GA,8.848042353505544,ml+ & br+ & po=
+GB,14.953058775297642,ml+ & br- & po=
+GC,-Inf,ml- & br+ & po=
+GD,8.848042353505544,ml- & br- & po=
+HA,-Inf,ml+ & br= & po+
+HB,25.057897728810634,ml+ & br= & po-
+HC,-Inf,ml- & br= & po+
+HD,18.438936251132965,ml- & br= & po-
+IA,-Inf,ml= & br+ & po+
+IB,22.0640811604722,ml= & br+ & po-
+IC,-Inf,ml= & br- & po+
+ID,25.351884011038166,ml= & br- & po-
+JA,-Inf,ml= & br= & po+
+JB,21.79278113174226,ml= & br= & po-
+KA,6.304248714730869,ml= & br+ & po=
+KB,12.228727303724801,ml= & br- & po=
+UN,9.278098726768192,BR & ML & PO (no effect in all manipulations)
