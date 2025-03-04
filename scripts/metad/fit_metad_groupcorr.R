@@ -116,15 +116,15 @@ fit_metad_groupcorr <- function (nR_S1, nR_S2) {
     # Create and update model
     cor_model <- jags.model(file = 'scripts/metad/Bayes_metad_group_corr2_R.txt', 
                             data = data,
-                            n.chains = 3, quiet=FALSE)
+                            n.chains = 4, quiet=FALSE)
     update(cor_model, n.iter=1000)
     
     # Sampling
     output <- coda.samples( 
       model          = cor_model,
       variable.names = c("cohen_d", "mu_logMratio", "sigma_logMratio", "rho", "Mratio", "mu_c2"),
-      n.iter         = 10000,
-      thin           = 1 )
+      n.iter         = 20000,
+      thin           = 2)
     
     
   }
